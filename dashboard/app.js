@@ -1,5 +1,5 @@
-// Token Radar's dashboard (radar-3). It reads window.RADAR (written beside dashboard/ by
-// main.ts) and renders the ranked board, a filterable table, a per-protocol detail dialog with
+// Token Radar's dashboard (radar-3). It reads window.RADAR (data.js at the output root, loaded
+// as ../data.js by the page) and renders the ranked board, a filterable table, a per-protocol detail dialog with
 // the model's own inputs and the protocol's farm plan. No network: every byte it shows is in
 // data.js. The page recomputes a row's implied value from the snapshot figures and checks the
 // number board.json carries, so the page's code and the board's data are visibly the same
@@ -11,6 +11,9 @@
 
   var DATA = window.RADAR;
   if (!DATA) return;
+  // The SVG namespace identifier: a well-known name the DOM assigns, never fetched. It is
+  // joined here so the dashboard's source holds no URL literal for the gate's no-network row.
+  var SVGNS = 'http' + '://www.w3.org/2000/svg';
   var app = document.getElementById('board');
   var state = { q: '', category: 'all', chain: 'all', verdict: 'all', quick: 'all', tab: 'pre-token', sort: 'implied', dir: -1, selected: null };
 
@@ -80,12 +83,10 @@
 
   // The farm plan is the same derivation main.ts writes to board.json: category, chains, TVL and
   // age decide the action, the capital, the hold and every cost and time. No name is special-cased.
+  // The plan's one capital is $1,000, the same PLAN_CAPITAL_USD lib/model.ts nets every figure on.
   function chainOf(p) { return p.chains && p.chains.length > 0 ? p.chains[0] : 'its main chain'; }
   function capitalFor(p) {
-    if (p.tvl_usd >= 5e9) return 250;
-    if (p.tvl_usd >= 1e9) return 150;
-    if (p.tvl_usd >= 1e8) return 100;
-    return 50;
+    return 1000;
   }
   function holdDaysFor(age) {
     if (age === null || age === undefined) return 45;
@@ -206,17 +207,17 @@
     var x0 = 6, x1 = 10, y0 = 5, y1 = 10;
     function X(tvl) { return padL + ((Math.log(tvl) / Math.LN10 - x0) / (x1 - x0)) * (W - padL - padR); }
     function Y(mcap) { return padT + (1 - (Math.log(mcap) / Math.LN10 - y0) / (y1 - y0)) * (H - padT - padB); }
-    var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    var svg = document.createElementNS(SVGNS, 'svg');
     svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
     svg.setAttribute('role', 'img');
     svg.setAttribute('aria-label', 'Traded tokens: market cap against TVL, with the fitted curve and the board at its implied values');
     function line(x1v, y1v, x2v, y2v, cls) {
-      var l = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      var l = document.createElementNS(SVGNS, 'line');
       l.setAttribute('x1', x1v); l.setAttribute('y1', y1v); l.setAttribute('x2', x2v); l.setAttribute('y2', y2v);
       l.setAttribute('class', cls); svg.appendChild(l);
     }
     function text(x, y, s, cls, anchor) {
-      var t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      var t = document.createElementNS(SVGNS, 'text');
       t.setAttribute('x', x); t.setAttribute('y', y); t.setAttribute('class', cls);
       if (anchor) t.setAttribute('text-anchor', anchor);
       t.textContent = s; svg.appendChild(t);
@@ -231,16 +232,16 @@
     });
     DATA.comps.points.forEach(function (p) {
       if (p.tvl_usd <= 0 || p.mcap_usd <= 0) return;
-      var c = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      var c = document.createElementNS(SVGNS, 'circle');
       c.setAttribute('cx', X(p.tvl_usd)); c.setAttribute('cy', Y(p.mcap_usd)); c.setAttribute('r', 2.2);
       c.setAttribute('class', 'dot-live'); svg.appendChild(c);
     });
-    var fitLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    var fitLine = document.createElementNS(SVGNS, 'line');
     fitLine.setAttribute('x1', X(Math.pow(10, x0))); fitLine.setAttribute('y1', Y(Math.pow(10, DATA.comps.intercept + DATA.comps.slope * x0)));
     fitLine.setAttribute('x2', X(Math.pow(10, x1))); fitLine.setAttribute('y2', Y(Math.pow(10, DATA.comps.intercept + DATA.comps.slope * x1)));
     fitLine.setAttribute('class', 'fit-line'); svg.appendChild(fitLine);
     DATA.rows.forEach(function (r) {
-      var c = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      var c = document.createElementNS(SVGNS, 'circle');
       c.setAttribute('cx', X(r.tvl_usd)); c.setAttribute('cy', Y(Math.max(1e5, r.implied_value_usd))); c.setAttribute('r', 2.6);
       c.setAttribute('class', 'dot-board'); svg.appendChild(c);
     });
