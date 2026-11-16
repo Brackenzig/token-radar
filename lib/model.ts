@@ -103,6 +103,14 @@ export const MODEL: ModelConstants = {
 /** The model's version label: the dashboard names it and the rules quote it. */
 export const MODEL_VERSION = 'radar-3';
 
+/**
+ * One farm plan's capital, in whole US dollars: every figure in the plan is netted on this one
+ * number. The farm steps deploy it, the slice is the plan's pro-rata share of the launch for it,
+ * the forgone T-bill yield is charged on it, and the dashboard states it. A single constant, so
+ * the board, the steps and the page can never disagree about what a plan costs.
+ */
+export const PLAN_CAPITAL_USD = 1000;
+
 /** How many pre-token protocols below the watchlist floor the early radar carries, by TVL. */
 export const EARLY_ROWS = 160;
 
@@ -446,14 +454,37 @@ export function impliedValue(
 /** DefiLlama's version-marker rule: a name ending in a release is a pool of another protocol. */
 const VERSIONED = /\s(V\d+(\.\d+)?|v\d+(\.\d+)?|\d+\.\d+)$/;
 
+/**
+ * The field guide's wrapped / staked / bridged exclusion, in full: a protocol is not a token
+ * that does not exist yet when it is a wrapped, staked or bridged product of another protocol.
+ * DefiLlama's record marks those by category (a bridge, a liquid staking or restaking product,
+ * a restaked-BTC product, an exchange), by a whole word in the name (wrapped, staked, staking),
+ * or by a name that begins with an exchange's name. The watchlist itself was built with this
+ * rule; the early rows below the floor get it here, so the board never ranks one.
+ */
+const EXCLUDED_CATEGORIES = new Set(['Bridge', 'Canonical Bridge', 'Liquid Staking', 'Liquid Restaking', 'Restaked BTC', 'CEX']);
+const EXCHANGE_PREFIX = /^(Binance|Coinbase|Bybit|Kraken|Bitget|OKX|Bitfinex|Gemini)\b/;
+const WRAPPED_WORD = /\b(wrapped|staked|staking)\b/i;
+
 /** Whether a protocol records no token at all. */
 export function isPreToken(p: SnapshotProtocol): boolean {
   return p.mcap_usd === null && p.gecko_id === null && p.symbol === null;
 }
 
+/** Whether a protocol is one the board may rank: pre-token, and none of the guide's exclusions. */
+export function isEligible(p: SnapshotProtocol): boolean {
+  return (
+    isPreToken(p) &&
+    !EXCLUDED_CATEGORIES.has(p.category ?? '') &&
+    !VERSIONED.test(p.name) &&
+    !WRAPPED_WORD.test(p.name) &&
+    !EXCHANGE_PREFIX.test(p.name)
+  );
+}
+
 /** Whether a protocol is one the board may rank: pre-token, not an exchange, not a versioned pool. */
 export function isRankable(p: SnapshotProtocol): boolean {
-  return isPreToken(p) && p.category !== 'CEX' && !VERSIONED.test(p.name);
+  return isEligible(p);
 }
 
 /** The snapshot's protocol by slug. */
@@ -492,10 +523,14 @@ export function buildBoard(snapshot: Snapshot, model: ModelConstants = MODEL): B
   const chosen = new Map<string, SnapshotProtocol>();
   for (const slug of snapshot.watchlist) {
     const p = index.get(slug);
-    if (p !== undefined) chosen.set(slug, p);
+    if (p === undefined) continue;
+    // The watchlist was built with the guide's rule, so every slug passes; refuse loudly
+    // rather than rank a row the guide excludes, since the gate wants the watchlist covered.
+    if (!isEligible(p)) throw new SnapshotError(`watchlist slug ${slug} is not an eligible pre-token protocol`);
+    chosen.set(slug, p);
   }
   const early = snapshot.protocols
-    .filter((p) => !chosen.has(p.slug) && isRankable(p) && p.tvl_usd < snapshot.floor_usd)
+    .filter((p) => !chosen.has(p.slug) && isEligible(p) && p.tvl_usd < snapshot.floor_usd)
     .sort((a, b) => b.tvl_usd - a.tvl_usd || (a.slug < b.slug ? -1 : a.slug > b.slug ? 1 : 0))
     .slice(0, EARLY_ROWS);
   for (const p of early) chosen.set(p.slug, p);
@@ -574,12 +609,9 @@ function chainOf(p: SnapshotProtocol): string {
   return p.chains.length > 0 ? p.chains[0]! : 'its main chain';
 }
 
-/** How much capital one farm position needs, from the protocol's own TVL. */
-function capitalFor(p: SnapshotProtocol): number {
-  if (p.tvl_usd >= 5_000_000_000) return 250;
-  if (p.tvl_usd >= 1_000_000_000) return 150;
-  if (p.tvl_usd >= 100_000_000) return 100;
-  return 50;
+/** How much capital one farm position needs: the plan's one capital, PLAN_CAPITAL_USD. */
+function capitalFor(_p: SnapshotProtocol): number {
+  return PLAN_CAPITAL_USD;
 }
 
 /** How long to hold, from the protocol's age: younger protocols get a longer qualifying window. */
@@ -658,11 +690,12 @@ export function farmSteps(p: SnapshotProtocol, age: number | null): FarmStep[] {
 }
 
 /**
- * The farm economics of one protocol: what $1,000 deposited would get if the farm share of the
- * launch goes to depositors pro rata, minus the plan's fees, gas and the forgone T-bill yield on
- * the capital, per hands-on hour. The verdict follows from it: FARM pays better than the hourly
- * threshold, THIN beats its fees only, SKIP never beats the fees. All inputs are the plan's own
- * figures and the row's implied value; nothing is hand-set per protocol.
+ * The farm economics of one protocol: what PLAN_CAPITAL_USD deposited would get if the farm
+ * share of the launch goes to depositors pro rata, minus the plan's fees, gas and the forgone
+ * T-bill yield on the same capital, per hands-on hour. The verdict follows from it: FARM pays
+ * better than the hourly threshold, THIN beats its fees only, SKIP never beats the fees. All
+ * inputs are the plan's own figures and the row's implied value; nothing is hand-set per
+ * protocol, and the slice, the fees and the forgone yield all net on the one plan capital.
  */
 export function farmEconomicsFor(impliedUsd: number, p: SnapshotProtocol, age: number | null, model: ModelConstants = MODEL): FarmEconomics {
   const capital = capitalFor(p);
@@ -671,7 +704,7 @@ export function farmEconomicsFor(impliedUsd: number, p: SnapshotProtocol, age: n
   const setupGas = 2;
   const feesUsd = round2(1 + setupGas + 0.5 * weeks + 1);
   const forgoneUsd = round2(capital * model.tbill_rate * (hold / 365));
-  const sliceUsd = round2(impliedUsd * model.farm_share * (1000 / p.tvl_usd));
+  const sliceUsd = round2(impliedUsd * model.farm_share * (capital / p.tvl_usd));
   const netUsd = round2(sliceUsd - feesUsd - forgoneUsd);
   const hours = round2(0.25 + (weeks * 10) / 60 + 10 / 60 + 10 / 60 + 5 / 60);
   const netPerHourUsd = round2(netUsd / hours);
