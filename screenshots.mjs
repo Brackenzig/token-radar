@@ -11,7 +11,7 @@
 //
 // The three shots, in order:
 //   1-board.png     the board as it opens, all verdicts, by implied value
-//   2-detail.png    one protocol's detail panel, the top-ranked row
+//   2-detail.png    one protocol's detail panel, the best farmable row
 //   3-filtered.png  the board filtered to the farmable rows
 //
 // The window is 1440 by 900, which satisfies the gate (long side at
@@ -157,17 +157,19 @@ function verifyShots(shotsDir, files) {
 // ---------------------------------------------------------------------------
 
 /** The shots, as [query, file] pairs, in the order they are taken.
-// The detail shot opens the top-ranked protocol's panel; the filtered
-// shot shows only the FARM rows. The top-ranked slug is read from the
-// board, so the detail shot always shows the first row, whatever the
-// data says — it is not hard-coded to one protocol. */
+// The detail shot opens the best farmable protocol's panel — the
+// highest-valued FARM row — so the detail view shows a plan worth
+// doing, with a positive net, rather than the top-ranked row, which
+// is a SKIP: the biggest protocols' $1,000 slices are too small to
+// net anything. The board is read from the output directory, which
+// main.ts just wrote; the read happens here, before any shot is
+// taken, so a missing board fails with a clear error instead of
+// leaving stale images in place. */
 function shotList(outDir) {
-  // The board is read from the output directory, which main.ts just
-  // wrote; its first row is the top-ranked protocol. The read happens
-  // here, before any shot is taken, so a missing board fails with a
-  // clear error instead of leaving stale images in place.
   const board = JSON.parse(readFileSync(join(outDir, "board.json"), "utf8"));
-  const top = board.rows && board.rows[0] ? board.rows[0].slug : "steakhouse-financial";
+  const rows = board.rows || [];
+  const farm = rows.find((r) => r.verdict === "FARM");
+  const top = farm ? farm.slug : rows[0] ? rows[0].slug : "steakhouse-financial";
   return [
     ["", "1-board.png"],
     [`?detail=${encodeURIComponent(top)}`, "2-detail.png"],
