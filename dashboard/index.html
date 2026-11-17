@@ -3,12 +3,76 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Token Radar: pre-token protocols ranked by implied value</title>
+<title>Token Radar — pre-token protocols, priced</title>
 <link rel="stylesheet" href="app.css">
 </head>
 <body>
-<a class="skip" href="#board">Skip to the board</a>
-<main id="board" tabindex="-1" aria-busy="true"></main>
+<header>
+  <h1>Token Radar</h1>
+  <p class="sub">Every protocol with no token yet, priced off the tokens that already
+  trade — and the farm plan for each one, netted of fees, gas and the yield
+  you give up by parking the capital.</p>
+  <p class="meta" id="meta">Loading…</p>
+</header>
+
+<section class="filters" aria-label="Filters">
+  <label>Search
+    <input id="q" type="search" placeholder="protocol, category or chain" autocomplete="off">
+  </label>
+  <label>Verdict
+    <select id="verdict">
+      <option value="">All verdicts</option>
+      <option value="FARM">FARM</option>
+      <option value="THIN">THIN</option>
+      <option value="SKIP">SKIP</option>
+    </select>
+  </label>
+  <label>Category
+    <select id="category">
+      <option value="">All categories</option>
+    </select>
+  </label>
+  <label>Sort by
+    <select id="sort">
+      <option value="implied_value_usd">Implied value</option>
+      <option value="net_per_hour_usd">Net per hour</option>
+      <option value="net_usd">Net per plan</option>
+      <option value="tvl_usd">TVL</option>
+    </select>
+  </label>
+</section>
+
+<main>
+  <table id="board">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Protocol</th>
+        <th>Category</th>
+        <th>Chains</th>
+        <th class="num">TVL</th>
+        <th class="num">7d</th>
+        <th class="num">Implied value</th>
+        <th class="num">Slice $1k</th>
+        <th class="num">Net</th>
+        <th class="num">Net / hr</th>
+        <th>Verdict</th>
+      </tr>
+    </thead>
+    <tbody id="rows"></tbody>
+  </table>
+  <p class="count" id="count"></p>
+</main>
+
+<aside id="detail" aria-label="Selected protocol" hidden>
+  <button id="close-detail" type="button" aria-label="Close detail">×</button>
+  <h2 id="detail-name"></h2>
+  <p id="detail-why"></p>
+  <dl id="detail-model"></dl>
+  <h3>Farm plan</h3>
+  <ol id="detail-steps"></ol>
+</aside>
+
 <script src="../data.js"></script>
 <script src="app.js"></script>
 </body>
