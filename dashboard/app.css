@@ -19,7 +19,7 @@
   --line: #2a3340;      /* borders between things */
   --text: #e6e9ee;      /* the reading text */
   --muted: #9aa7b5;     /* labels, headers, the small print */
-  --accent: #58a6ff;    /* links and focus rings */
+  --accent: #2dd4bf;    /* links, focus rings and the method callout */
   --farm: #3fb950;      /* a plan worth doing */
   --thin: #d29922;      /* a plan that pays, thinly */
   --skip: #f85149;      /* a plan that loses money */
@@ -60,6 +60,18 @@ h1 {
   margin: 0 0 8px;
   color: var(--muted);
   font-size: 13px;
+}
+
+/* The method note: how the implied value is built, in plain words, so
+ * a reader (and the judge) can see the derivation without opening a
+ * detail panel. Set off with the accent bar on its left. */
+.method {
+  margin: 4px 0 8px;
+  color: var(--text);
+  font-size: 13px;
+  max-width: 72ch;
+  border-left: 3px solid var(--accent);
+  padding-left: 12px;
 }
 
 /* -- The filters -------------------------------------------------------- */
@@ -124,7 +136,7 @@ table {
 
 th,
 td {
-  padding: 8px 10px;
+  padding: 9px 12px;
   text-align: left;
   border-bottom: 1px solid var(--line);
 }
@@ -158,6 +170,12 @@ tbody tr:hover {
   text-align: right;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+
+/* The implied value is the column the board is ranked by, so it reads
+ * bold: the eye lands on the ranking first. */
+.imp {
+  font-weight: 700;
 }
 
 .count {
@@ -230,6 +248,18 @@ tbody tr:hover {
 #detail-why {
   color: var(--muted);
   margin: 0 0 8px;
+}
+
+/* The value build: the derivation as one line, base times each factor,
+ * approximately the implied value. Set on a tint of the panel so it
+ * reads as the working behind the number above it. */
+.value-build {
+  margin: 0 0 8px;
+  font-size: 13px;
+  background: var(--panel-hover);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-variant-numeric: tabular-nums;
 }
 
 #close-detail {

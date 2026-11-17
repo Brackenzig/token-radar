@@ -98,7 +98,7 @@ function rowHtml(r) {
     "<td>" + chains + "</td>" +
     '<td class="num">' + fmtMoney(r.tvl_usd) + "</td>" +
     '<td class="num">' + fmtPct(r.change_7d) + "</td>" +
-    '<td class="num">' + fmtMoney(r.implied_value_usd) + "</td>" +
+    '<td class="num imp">' + fmtMoney(r.implied_value_usd) + "</td>" +
     '<td class="num">' + fmtDollars(r.slice_1k_usd) + "</td>" +
     '<td class="num">' + fmtDollars(r.net_usd) + "</td>" +
     '<td class="num">' + fmtDollars(r.net_per_hour_usd) + "</td>" +
@@ -237,6 +237,27 @@ function modelHtml(r) {
   );
 }
 
+/** The value build for a row, as one line: the comparables base times
+// each factor in turn, approximately the implied value. Approximately,
+// because the base is the rounded whole-dollar figure the detail
+// records while the value itself is computed from the exact curve
+// prediction — the product of the rounded figures lands within a
+// percent of the value. The line is the derivation made visible: the
+// reader can see every factor that built the number. */
+function valueBuildText(r) {
+  const m = r.model;
+  return (
+    "Value builds as base × category × growth × momentum × maturity × breadth: " +
+    fmtMoney(m.comps_base_usd) +
+    " × " + m.category_factor.toFixed(3) +
+    " × " + m.growth_multiplier.toFixed(3) +
+    " × " + (1 + m.momentum).toFixed(2) +
+    " × " + m.maturity_multiplier.toFixed(3) +
+    " × " + m.breadth_multiplier.toFixed(2) +
+    " ≈ " + fmtMoney(r.implied_value_usd)
+  );
+}
+
 /** Open the detail panel for a slug: the name and verdict as the
 // heading, the why line, the model breakdown, and the seven farm
 // steps as a numbered list. A slug with no row does nothing, so a bad
@@ -246,6 +267,7 @@ function showDetail(slug) {
   if (!r) return;
   $("detail-name").textContent = r.name + " — " + r.verdict;
   $("detail-why").textContent = r.why;
+  $("detail-build").textContent = valueBuildText(r);
   $("detail-model").innerHTML = modelHtml(r);
   $("detail-steps").innerHTML = r.farm_steps
     .map((s) => "<li>" + escapeHtml(s) + "</li>")

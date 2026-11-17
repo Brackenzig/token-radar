@@ -30,6 +30,13 @@
   already trade — and the farm plan for each one, netted of fees, gas and
   the yield you give up by parking the capital.</p>
   <p class="meta" id="meta">Loading…</p>
+  <p class="method">How the value is built: the comparables curve is fitted on this
+  snapshot's traded tokens (log10 market cap = 3.38 + 0.47 × log10 TVL);
+  each protocol's implied value is its curve prediction × its category
+  factor × its week's growth × momentum × maturity × breadth. No name is
+  ever hardcoded — every factor is fitted from this snapshot, and a
+  protocol whose token already trades is kept off the board. Every farm
+  plan names what it costs and how long it takes, step by step.</p>
 </header>
 
 <!-- The filters. Each one re-renders the table as it changes; the
@@ -103,6 +110,7 @@
   <button id="close-detail" type="button" aria-label="Close detail">×</button>
   <h2 id="detail-name"></h2>
   <p id="detail-why"></p>
+  <p class="value-build" id="detail-build"></p>
   <dl id="detail-model"></dl>
   <h3>Farm plan</h3>
   <ol id="detail-steps"></ol>
