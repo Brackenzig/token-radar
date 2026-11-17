@@ -1,10 +1,16 @@
 # Token Radar
 
+[![make.fun · token-radar-01](https://make.fun/badge/token-radar-01.svg)](https://make.fun/bounty/token-radar-01?utm_source=github&utm_medium=readme&utm_campaign=token-radar-01)
+[![rank](https://make.fun/badge/token-radar-01/Brackenzig/token-radar/rank.svg)](https://make.fun/bounty/token-radar-01/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=token-radar-01)
+[![reward](https://make.fun/badge/token-radar-01/Brackenzig/token-radar/reward.svg)](https://make.fun/bounty/token-radar-01?utm_source=github&utm_medium=readme&utm_campaign=token-radar-01)
+
 A token-launch radar: it reads a sealed DefiLlama snapshot of every
 protocol, prices every protocol with no token yet off the tokens that
 already trade, and nets a farm plan for each one — the $1,000 slice minus
 fees, gas and the yield you give up by parking the capital, per plan and
 per hands-on hour, with a FARM / THIN / SKIP verdict.
+
+Entry for [token-radar-01 on make.fun](https://make.fun/bounty/token-radar-01).
 
 ## How it works
 
