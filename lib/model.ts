@@ -601,19 +601,110 @@ export function depositStep(name: string, category: string, chain: string): stri
   }
 }
 
-/** The seven concrete steps to farm a protocol: a fresh wallet, a $1,000
-// deposit on its first chain, a weekly qualifying action, the hold, the
-// points check, the claim from the protocol's own link, and the farm log.
-// Each step names its cost and its time, so the reader knows what the
-// plan asks of them before they start. */
+/** The weekly qualifying action, worded for what the protocol actually
+// is: one concrete action with an amount, not a choice of actions. A
+// DEX gets a swap through its pool, a lender gets a borrow-and-repay,
+// a vault gets its rewards claimed and restaked, a stablecoin wrapper
+// gets a mint, and so on. Every variant costs the same $0.50 of gas a
+// week and takes 10 minutes, so the action is the only thing that
+// changes — the plan's money never moves. */
+export function weeklyStep(name: string, category: string, chain: string): string {
+  const tail = "Cost: about $0.50 of gas a week. Time: 10 minutes a week.";
+  switch (category) {
+    case "Dexs":
+    case "Indexes":
+    case "Leveraged Farming":
+    case "Yield":
+    case "Yield Aggregator":
+      return `Swap $25 of USDC through ${name}'s main pool on ${chain} each week so the wallet stays active. ${tail}`;
+    case "Derivatives":
+    case "Interest Rate Derivatives":
+      return `Open one small hedge on ${name} each week and close it the same day so the wallet stays active. ${tail}`;
+    case "CDP":
+    case "Collateral Markets":
+    case "Lending":
+    case "Uncollateralized Lending":
+      return `Borrow $50 of USDC against the supply on ${name} each week and repay it the same day so the position stays active. ${tail}`;
+    case "Dual-Token Stablecoin":
+    case "Stablecoin Wrapper":
+      return `Mint $25 of the stable asset through ${name} on ${chain} each week and hold it. ${tail}`;
+    case "Insurance":
+      return `Check the cover on ${name} each week and top it up by $25 when the policy needs it to stay active. ${tail}`;
+    case "Onchain Capital Allocator":
+    case "Risk Curators":
+      return `Claim the vault's rewards on ${name} each week and restake them into the same vault. ${tail}`;
+    case "Prediction Market":
+      return `Place one $25 position on a ${name} market each week and settle it when it closes. ${tail}`;
+    case "RWA":
+      return `Check the yield asset's accrual on ${name} each week and add $25 when it pays out. ${tail}`;
+    case "Restaking":
+    case "Staking Pool":
+      return `Restake the staking rewards through ${name} each week so the receipt keeps growing. ${tail}`;
+    default:
+      return `Deposit another $25 into ${name} on ${chain} each week so the wallet stays active. ${tail}`;
+  }
+}
+
+/** What the points check looks at, by what the protocol is: the pool
+// position, the supply, the vault shares, the margin account, the
+// minted balance, the policy, the market position, the yield asset or
+// the staked receipt. The check is the same everywhere — open the
+// protocol's points page, confirm the position is active and earning
+// points, pay nothing to check — but the thing being checked is the
+// protocol's own. A category with no special wording falls back to
+// checking the wallet itself. */
+export function checkStep(name: string, category: string): string {
+  const tail = "Cost: no fee to check, and never pay to claim. Time: 10 minutes.";
+  switch (category) {
+    case "Dexs":
+    case "Indexes":
+    case "Leveraged Farming":
+    case "Yield":
+    case "Yield Aggregator":
+      return `Open ${name}'s points page and check the pool position shows as active and earning points before you withdraw anything. ${tail}`;
+    case "Derivatives":
+    case "Interest Rate Derivatives":
+      return `Open ${name}'s points page and check the margin account shows as active and earning points before you withdraw anything. ${tail}`;
+    case "CDP":
+    case "Collateral Markets":
+    case "Lending":
+    case "Uncollateralized Lending":
+      return `Open ${name}'s points page and check the supply shows as active and earning points before you withdraw anything. ${tail}`;
+    case "Dual-Token Stablecoin":
+    case "Stablecoin Wrapper":
+      return `Open ${name}'s points page and check the minted balance shows as active and earning points before you withdraw anything. ${tail}`;
+    case "Insurance":
+      return `Open ${name}'s points page and check the policy shows as active and earning points before you withdraw anything. ${tail}`;
+    case "Onchain Capital Allocator":
+    case "Risk Curators":
+      return `Open ${name}'s points page and check the vault shares show as active and earning points before you withdraw anything. ${tail}`;
+    case "Prediction Market":
+      return `Open ${name}'s points page and check the market position shows as active and earning points before you withdraw anything. ${tail}`;
+    case "RWA":
+      return `Open ${name}'s points page and check the yield asset shows as active and earning points before you withdraw anything. ${tail}`;
+    case "Restaking":
+    case "Staking Pool":
+      return `Open ${name}'s points page and check the staked receipt shows as active and earning points before you withdraw anything. ${tail}`;
+    default:
+      return `Open ${name}'s own points or rewards page and check the wallet is earning points before you withdraw anything. ${tail}`;
+  }
+}
+
+/** The seven concrete steps to farm a protocol: a fresh wallet on its
+// first chain, a $1,000 deposit worded for what the protocol is, one
+// concrete weekly action with an amount, the hold, the points check on
+// the protocol's own position, the claim from the protocol's own link,
+// and the farm log. Every step names its cost and its time, and the
+// deposit, the weekly action and the check are written for the
+// protocol's category, so no two kinds of protocol share a plan. */
 export function farmSteps(name: string, category: string, chain: string, hold: number): string[] {
   return [
-    `Use a fresh wallet that holds only the funds you plan to farm, and keep its seed phrase offline. Cost: about $1 of gas for the first transaction. Time: 5 minutes.`,
+    `Open a fresh wallet on ${chain} that holds only the funds you plan to farm, and keep its seed phrase offline. Cost: about $1 of gas for the first transaction. Time: 5 minutes.`,
     depositStep(name, category, chain),
-    `Make one qualifying action each week, such as a deposit, a borrow, a swap or a vote. Cost: about $0.50 of gas a week. Time: 10 minutes a week.`,
+    weeklyStep(name, category, chain),
     `Hold the position for at least ${hold} days so the activity is counted in more than one snapshot. Cost: the $1000 stays in the position. Time: ${hold} days.`,
-    `Open ${name}'s own points or rewards page and check the wallet is earning points before you withdraw anything. Cost: no fee to check, and never pay to claim. Time: 10 minutes.`,
-    `Before you withdraw, claim only from the link the protocol itself publishes. Cost: the claim gas only. Time: 10 minutes.`,
+    checkStep(name, category),
+    `Before you withdraw, claim only from the link the protocol itself publishes, never from a link in a message or a search result. Cost: the claim gas only. Time: 10 minutes.`,
     `Write the wallet, the dates and every transaction in a farm log so you can repeat the position or unwind it. Cost: nothing but the log. Time: 5 minutes.`,
   ];
 }
@@ -768,5 +859,11 @@ export function buildBoard(snapshot: Snapshot): BoardRow[] {
 // reference board holds 178. The 20 extra pass the field-guide rule
 // and no field in the snapshot separates them from the reference's
 // 178, so they stay. They are all THIN or SKIP, the FARM count is 95
-// on both boards, and the verdicts, slices, fees, nets, holds, ages
-// and farm steps on the 178 common rows match exactly.
+// on both boards, and the verdicts, slices, fees, nets, holds and ages
+// on the 178 common rows match exactly. The farm steps do not match
+// the reference word for word any more, and that is deliberate: the
+// reference's steps are one template shared by every protocol, and
+// v3 writes each step for the protocol's own category instead (the
+// deposit, the weekly action and the points check all vary by kind).
+// The money on a row — the slice, the fees, the net, the hold — is
+// untouched by that change, so the numbers still match exactly.
