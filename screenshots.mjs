@@ -1,57 +1,69 @@
-// Take the three screenshots the bounty asks for, from the built dashboard in out/dashboard/:
-//   1-board.png     the board (the first look: hero, comps chart, filters, table)
-//   2-detail.png    a protocol's detail view (the dialog, open on the top pick)
-//   3-filtered.png  a filtered view (FARM verdicts only)
+// Token Radar — the screenshots.
 //
-// Usage: node screenshots.mjs [dashboardDir] [outDir]
-// Defaults: out/dashboard and screenshots/. Uses the Chrome binary downloaded from
-// Chrome for Testing (CHROME_PATH) or the copy in the workspace.
-import { chromium } from 'playwright-core';
-import { mkdirSync, existsSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+// Re-takes the three dashboard screenshots with headless Chrome: the full
+// board, one protocol's detail panel, and the board filtered to FARM.
+// The dashboard must already be built into the output directory (run
+// main.ts first). The shots land in screenshots/ beside this script.
+//
+// Usage: node screenshots.mjs [--out <dir>] [--chrome <path>]
+//   --out     the output directory holding dashboard/ (default: out)
+//   --chrome  the Chrome binary (default: ../chrome-linux64/chrome,
+//             else $CHROME_PATH, else google-chrome on PATH)
 
-const dashboardDir = resolve(process.argv[2] ?? 'out/dashboard');
-const outDir = resolve(process.argv[3] ?? 'screenshots');
-const chromePath = process.env.CHROME_PATH ?? resolve(process.cwd(), '..', 'chrome-linux64', 'chrome');
+import { execFileSync } from "node:child_process";
+import { existsSync, mkdirSync } from "node:fs";
+import { join, resolve, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 
-async function main() {
-  if (!existsSync(join(dashboardDir, 'index.html'))) {
-    console.error(`screenshots: no dashboard at ${dashboardDir} — run main.ts first`);
-    process.exit(1);
-  }
-  mkdirSync(outDir, { recursive: true });
-  const browser = await chromium.launch({ executablePath: chromePath, args: ['--no-sandbox'] });
-  const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 });
-  page.on('pageerror', (e) => console.error('page error:', String(e).slice(0, 200)));
-  page.on('console', (m) => { if (m.type() === 'error') console.error('console error:', m.text().slice(0, 200)); });
-
-  // 1. The board.
-  await page.goto(`file://${join(dashboardDir, 'index.html')}`, { waitUntil: 'load' });
-  await page.waitForSelector('#board .shell', { timeout: 10000 });
-  await page.waitForTimeout(400);
-  await page.screenshot({ path: join(outDir, '1-board.png') });
-
-  // 2. The detail view: open the dialog on the top pick (rank 1).
-  await page.evaluate(() => {
-    const row = document.querySelector('tbody tr');
-    if (row) row.click();
-  });
-  await page.waitForSelector('dialog[open]', { timeout: 5000 });
-  await page.waitForTimeout(300);
-  await page.screenshot({ path: join(outDir, '2-detail.png') });
-  await page.keyboard.press('Escape');
-  await page.waitForTimeout(200);
-
-  // 3. A filtered view: FARM verdicts only.
-  await page.evaluate(() => {
-    const select = document.querySelector('#verdict');
-    if (select) { select.value = 'FARM'; select.dispatchEvent(new Event('change', { bubbles: true })); }
-  });
-  await page.waitForTimeout(400);
-  await page.screenshot({ path: join(outDir, '3-filtered.png') });
-
-  await browser.close();
-  console.log(`screenshots: wrote 1-board.png, 2-detail.png, 3-filtered.png to ${outDir}`);
+function argValue(flag, fallback) {
+  const at = process.argv.indexOf(flag);
+  if (at >= 0 && at + 1 < process.argv.length) return process.argv[at + 1];
+  return fallback;
 }
 
-main().catch((e) => { console.error('screenshots:', e.message); process.exit(1); });
+function findChrome() {
+  const flag = argValue("--chrome", null);
+  if (flag && existsSync(flag)) return flag;
+  const here = dirname(fileURLToPath(import.meta.url));
+  const bundled = resolve(here, "..", "chrome-linux64", "chrome");
+  if (existsSync(bundled)) return bundled;
+  if (process.env.CHROME_PATH && existsSync(process.env.CHROME_PATH)) {
+    return process.env.CHROME_PATH;
+  }
+  return "google-chrome";
+}
+
+function shot(chrome, url, outFile) {
+  execFileSync(
+    chrome,
+    [
+      "--headless",
+      "--disable-gpu",
+      "--no-sandbox",
+      "--hide-scrollbars",
+      "--window-size=1440,900",
+      `--screenshot=${outFile}`,
+      url,
+    ],
+    { stdio: "pipe", timeout: 120000 },
+  );
+  console.log(`shot ${outFile}`);
+}
+
+function main() {
+  const outDir = resolve(argValue("--out", "out"));
+  const here = dirname(fileURLToPath(import.meta.url));
+  const shotsDir = resolve(here, "screenshots");
+  mkdirSync(shotsDir, { recursive: true });
+  const chrome = findChrome();
+  const page = `file://${join(outDir, "dashboard", "index.html")}`;
+
+  // The board, as it opens.
+  shot(chrome, page, join(shotsDir, "1-board.png"));
+  // One protocol's detail panel: the top-ranked row.
+  shot(chrome, `${page}?detail=steakhouse-financial`, join(shotsDir, "2-detail.png"));
+  // The board filtered to the farmable rows.
+  shot(chrome, `${page}?verdict=FARM`, join(shotsDir, "3-filtered.png"));
+}
+
+main();
