@@ -1,4 +1,4 @@
-// Token Radar — the local gate replica.
+// Token Radar — the local gate replica, v4.
 //
 // The seven checks the competition runs on the output directory, re-run
 // here before a submission so a bad bundle never leaves the machine.
@@ -71,9 +71,10 @@ function pngSize(buf) {
   return { width: buf.readUInt32BE(16), height: buf.readUInt32BE(20) };
 }
 
-/** Width and height of a JPEG from its SOF0/SOF2 marker: scan the
-// segments for a start-of-frame marker and read the dimensions from it.
-// Returns null when no frame marker is found. */
+/** Width and height of a JPEG from its start-of-frame marker: scan the
+// segments for a SOF marker (0xC0–0xCF except the Huffman, arithmetic
+// and restart markers) and read the dimensions from it. Returns null
+// when no frame marker is found. */
 function jpegSize(buf) {
   if (buf.length < 4 || buf[0] !== 0xff || buf[1] !== 0xd8) return null;
   let at = 2;
