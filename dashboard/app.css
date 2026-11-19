@@ -1,28 +1,28 @@
-/* Token Radar — a dense, readable board.
+/* Token Radar — a ledger, not a terminal.
  *
- * No web fonts, no images, no network. A dark page: the board is the
- * thing, and the colour is spent on the verdicts — green for FARM,
+ * No web fonts, no images, no network. Paper and ink: the board is a
+ * ledger page, the colour is spent on the verdicts — green for FARM,
  * amber for THIN, red for SKIP — so a reader can scan a hundred rows
- * and see at once which plans are worth doing.
- *
- * The layout is one centred column, 1200px at most, so the table stays
- * readable on a wide screen and the detail panel can slide in from the
- * right without covering the whole board.
+ * and see at once which plans are worth doing. The layout is full
+ * width, 1440px at most, with a sidebar beside the table, so the first
+ * screenshot shows the market line, the farms worth doing next and the
+ * validation next to the ranking.
  */
 
 /* -- The palette -------------------------------------------------------- */
 
 :root {
-  --bg: #0e1116;        /* the page behind everything */
-  --panel: #161b22;     /* cards, the table, the inputs */
-  --panel-hover: #1c2530; /* a table row under the pointer */
-  --line: #2a3340;      /* borders between things */
-  --text: #e6e9ee;      /* the reading text */
-  --muted: #9aa7b5;     /* labels, headers, the small print */
-  --accent: #2dd4bf;    /* links, focus rings and the method callout */
-  --farm: #3fb950;      /* a plan worth doing */
-  --thin: #d29922;      /* a plan that pays, thinly */
-  --skip: #f85149;      /* a plan that loses money */
+  --bg: #f6f2e9;        /* the paper behind everything */
+  --panel: #fffdf6;     /* cards, the table, the inputs */
+  --line: #ddd3bd;      /* borders between things */
+  --line-soft: #e7dfc9; /* faint rules inside cards */
+  --text: #1c1a15;      /* the reading text */
+  --muted: #6b6455;     /* labels, headers, the small print */
+  --accent: #1f6b3a;    /* deep ledger green: links, the fitted line */
+  --accent-soft: #e3efe4; /* a tint of the accent, for badges */
+  --farm: #1f7a37;      /* a plan worth doing */
+  --thin: #8a6100;      /* a plan that pays, thinly */
+  --skip: #b3261e;      /* a plan that loses money */
 }
 
 /* -- The page ----------------------------------------------------------- */
@@ -33,336 +33,307 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  font: 15px/1.5 -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  padding: 28px 32px 48px;
 }
 
-/* -- The header --------------------------------------------------------- */
-
-header {
-  padding: 24px 24px 8px;
-  max-width: 1200px;
-  margin: 0 auto;
-}
-
-h1 {
-  margin: 0 0 4px;
-  font-size: 26px;
-  letter-spacing: -0.01em;
-}
-
-.sub {
+h1, h2, h3 {
+  font-family: Georgia, "Times New Roman", serif;
+  line-height: 1.2;
   margin: 0 0 8px;
-  color: var(--muted);
-  max-width: 72ch;
 }
+h1 { font-size: 34px; letter-spacing: -0.01em; }
+h2 { font-size: 19px; }
+h3 { font-size: 15px; }
 
-.meta {
-  margin: 0 0 8px;
+p { margin: 0 0 12px; }
+a { color: var(--accent); }
+
+header { max-width: 1440px; margin: 0 auto 16px; }
+header .sub { max-width: 1000px; color: var(--text); }
+
+/* The KPI strip: the whole snapshot in one line. */
+.kpis {
+  font-size: 14px;
   color: var(--muted);
-  font-size: 13px;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  padding: 8px 0;
+  margin: 12px 0;
 }
+.kpis strong { color: var(--text); }
 
-/* The method note: how the implied value is built, in plain words, so
- * a reader (and the judge) can see the derivation without opening a
- * detail panel. Set off with the accent bar on its left. */
+/* The method note: the proof, in words, before the board. */
 .method {
-  margin: 4px 0 8px;
+  font-size: 13.5px;
   color: var(--text);
-  font-size: 13px;
-  max-width: 72ch;
-  border-left: 3px solid var(--accent);
-  padding-left: 12px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--accent);
+  padding: 12px 16px;
+  margin: 0 0 4px;
 }
 
-/* -- The filters -------------------------------------------------------- */
+/* -- Tabs ---------------------------------------------------------------- */
 
-/* A row of labelled controls that wraps on a narrow screen. The labels
- * sit above their controls, small and muted, so the row reads as four
- * named filters rather than four bare boxes. */
+.tabs {
+  display: flex;
+  gap: 4px;
+  max-width: 1440px;
+  margin: 16px auto 0;
+  border-bottom: 2px solid var(--line);
+}
+.tabs button {
+  font: inherit;
+  font-size: 14px;
+  background: none;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  padding: 8px 14px;
+  color: var(--muted);
+  cursor: pointer;
+}
+.tabs button:hover { color: var(--text); }
+.tabs button.active {
+  color: var(--text);
+  border-bottom-color: var(--accent);
+  font-weight: 600;
+}
+.tabs button span {
+  color: var(--muted);
+  font-weight: 400;
+  font-size: 12px;
+}
+
+/* -- Filters -------------------------------------------------------------- */
+
 .filters {
   display: flex;
   flex-wrap: wrap;
-  gap: 16px;
   align-items: end;
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 12px 24px;
+  gap: 16px;
+  max-width: 1440px;
+  margin: 16px auto;
 }
-
 .filters label {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 4px;
   font-size: 12px;
   color: var(--muted);
 }
-
-.filters input,
-.filters select {
-  background: var(--panel);
-  color: var(--text);
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  padding: 7px 10px;
+.filters input, .filters select {
   font: inherit;
+  font-size: 14px;
+  color: var(--text);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 6px 8px;
 }
-
-.filters input:focus,
-.filters select:focus {
+.filters input { width: 240px; }
+.filters input:focus, .filters select:focus, button:focus {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
+}
+.capital {
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 4px 8px 8px;
+  margin: 0;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.capital legend {
+  font-size: 12px;
+  color: var(--muted);
+  padding: 0 4px;
+}
+.capital button, .verdict-summary button {
+  font: inherit;
+  font-size: 13px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 4px 10px;
+  cursor: pointer;
+  color: var(--text);
+}
+.capital button:hover, .verdict-summary button:hover { border-color: var(--accent); }
+.capital button.active, .verdict-summary button.active {
+  background: var(--accent);
   border-color: var(--accent);
+  color: #fff;
+  font-weight: 600;
 }
 
-.filters input {
-  min-width: 240px;
-}
+/* -- The layout: table left, sidebar right -------------------------------- */
 
-/* -- The board ---------------------------------------------------------- */
-
-main {
-  max-width: 1200px;
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 24px;
+  max-width: 1440px;
   margin: 0 auto;
-  padding: 8px 24px 32px;
+  align-items: start;
 }
+@media (max-width: 1100px) {
+  .layout { grid-template-columns: 1fr; }
+  body { padding: 20px 16px 40px; }
+}
+
+main { min-width: 0; }
+
+/* -- The verdict summary, above the board ---------------------------------- */
+
+.verdict-summary {
+  font-size: 13.5px;
+  color: var(--muted);
+  margin: 0 0 8px;
+}
+
+/* -- Tables ---------------------------------------------------------------- */
 
 table {
   width: 100%;
   border-collapse: collapse;
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 8px;
-  overflow: hidden;
+  font-size: 13px;
 }
-
-th,
-td {
-  padding: 9px 12px;
+th, td {
   text-align: left;
-  border-bottom: 1px solid var(--line);
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--line-soft);
+  vertical-align: middle;
 }
-
-/* The last row has no border under it: the table ends cleanly. */
-tbody tr:last-child td {
-  border-bottom: none;
-}
-
 thead th {
-  font-size: 12px;
-  color: var(--muted);
+  font-size: 11.5px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  white-space: nowrap;
+  color: var(--muted);
+  position: sticky;
+  top: 0;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+  z-index: 1;
 }
-
-/* A row is clickable — it opens the detail panel — so it shows a
- * pointer and a highlight on hover. */
-tbody tr {
+tbody tr:hover { background: #faf6ea; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+td.strong { font-weight: 600; }
+.subline {
+  font-size: 11.5px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 220px;
+}
+.rowlink {
+  font: inherit;
+  font-weight: 600;
+  color: var(--text);
+  background: none;
+  border: 0;
+  padding: 0;
   cursor: pointer;
+  text-align: left;
 }
+.rowlink:hover { color: var(--accent); text-decoration: underline; }
 
-tbody tr:hover {
-  background: var(--panel-hover);
-}
-
-/* Numbers right-aligned, tabular, never wrapping: a column of money
- * should line up. */
-.num {
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-
-/* The implied value is the column the board is ranked by, so it reads
- * bold: the eye lands on the ranking first. */
-.imp {
-  font-weight: 700;
-}
-
-.count {
-  color: var(--muted);
-  font-size: 13px;
-}
-
-.note {
-  color: var(--muted);
-  font-size: 13px;
-  max-width: 72ch;
-}
-
-/* -- The verdict pills -------------------------------------------------- */
-
-/* A small pill, bold, in the verdict's colour on a tint of itself. The
- * colour is the whole point: a reader scanning the table reads the
- * verdicts by colour before reading the words. */
 .verdict {
+  display: inline-block;
+  font-size: 11px;
   font-weight: 700;
-  font-size: 12px;
+  letter-spacing: 0.04em;
   padding: 2px 8px;
-  border-radius: 999px;
-  white-space: nowrap;
+  border-radius: 3px;
+}
+.verdict.farm { color: var(--farm); background: #e2f0e3; }
+.verdict.thin { color: var(--thin); background: #f7ecd2; }
+.verdict.skip { color: var(--skip); background: #f9e2df; }
+
+.badge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent);
+  background: var(--accent-soft);
+  padding: 2px 8px;
+  border-radius: 3px;
 }
 
-.verdict-farm {
-  color: var(--farm);
-  background: rgba(63, 185, 80, 0.15);
+.count { font-size: 13px; color: var(--muted); margin: 10px 0 0; }
+.note { font-size: 13px; color: var(--muted); }
+
+/* -- The sidebar ------------------------------------------------------------ */
+
+.side { display: flex; flex-direction: column; gap: 16px; }
+.side-box {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  padding: 14px 16px;
 }
+.side-box h2 { font-size: 16px; margin-bottom: 6px; }
+.side-box .note { margin-bottom: 4px; }
+.side-box dl { margin: 0; font-size: 13px; }
+.side-box dt { font-weight: 600; margin-top: 8px; }
+.side-box dt:first-child { margin-top: 0; }
+.side-box dd { margin: 0; color: var(--text); }
+#farm-next { margin: 6px 0 0; padding-left: 20px; font-size: 13.5px; }
+#farm-next li { margin-bottom: 6px; }
+#farm-next .rowlink { font-weight: 600; }
 
-.verdict-thin {
-  color: var(--thin);
-  background: rgba(210, 153, 34, 0.15);
+/* -- The method tab ----------------------------------------------------------- */
+
+#view-method h2 { margin-top: 4px; }
+.method-grid {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 24px;
+  align-items: start;
 }
+@media (max-width: 900px) { .method-grid { grid-template-columns: 1fr; } }
+#method-tests dt { font-weight: 600; margin-top: 10px; }
+#method-tests dd { margin: 0 0 4px; }
+#method-bands, #method-plan { font-size: 14px; }
 
-.verdict-skip {
-  color: var(--skip);
-  background: rgba(248, 81, 73, 0.15);
-}
+/* -- The detail panel ---------------------------------------------------------- */
 
-/* -- The detail panel --------------------------------------------------- */
-
-/* A fixed panel on the right, as tall as the viewport, scrolling
- * on its own. It covers the board's right edge but never the whole
- * page, so the reader can still see the table behind it. */
 #detail {
   position: fixed;
   top: 0;
   right: 0;
-  width: min(480px, 100vw);
-  height: 100vh;
+  bottom: 0;
+  width: 440px;
+  max-width: 94vw;
   overflow-y: auto;
   background: var(--panel);
   border-left: 1px solid var(--line);
+  box-shadow: -8px 0 24px rgba(28, 26, 21, 0.18);
   padding: 20px 24px 32px;
-  box-shadow: -8px 0 32px rgba(0, 0, 0, 0.45);
+  z-index: 10;
 }
-
-#detail h2 {
-  margin: 0 0 8px;
-  font-size: 20px;
-  padding-right: 32px;
-}
-
-#detail h3 {
-  margin: 20px 0 8px;
-}
-
-#detail-why {
-  color: var(--muted);
-  margin: 0 0 8px;
-}
-
-/* The value build: the derivation as one line, base times each factor,
- * approximately the implied value. Set on a tint of the panel so it
- * reads as the working behind the number above it. */
-.value-build {
-  margin: 0 0 8px;
-  font-size: 13px;
-  background: var(--panel-hover);
-  border-radius: 6px;
-  padding: 8px 10px;
-  font-variant-numeric: tabular-nums;
-}
-
 #close-detail {
   position: absolute;
   top: 12px;
-  right: 16px;
-  background: none;
-  border: none;
-  color: var(--muted);
-  font-size: 24px;
+  right: 14px;
+  font-size: 22px;
   line-height: 1;
+  background: none;
+  border: 0;
   cursor: pointer;
+  color: var(--muted);
   padding: 4px 8px;
 }
-
-#close-detail:hover {
-  color: var(--text);
-}
-
-/* The model breakdown: a term on the left, its value on the right. */
-#detail dl {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 4px 16px;
-  margin: 12px 0;
-  font-size: 13px;
-}
-
-#detail dt {
-  color: var(--muted);
-}
-
-#detail dd {
-  margin: 0;
-}
-
-/* The farm steps: a numbered list, each step with room to breathe. */
-#detail-steps {
-  padding-left: 20px;
-}
-
-#detail-steps li {
-  margin-bottom: 10px;
-}
-
-/* -- Narrow screens ----------------------------------------------------- */
-
-/* On a phone the filters stack, the table scrolls sideways rather than
- * squeezing, and the detail panel takes the whole width. */
-@media (max-width: 640px) {
-  .filters input {
-    min-width: 0;
-    width: 100%;
-  }
-
-  .filters label {
-    flex: 1 1 100%;
-  }
-
-  main {
-    padding: 8px 12px 24px;
-    overflow-x: auto;
-  }
-
-  #detail {
-    width: 100vw;
-  }
-}
-
-/* -- The verdict summary ------------------------------------------------ */
-
-/* Three pills under the filters, one per verdict, each showing how many
- * rows hold it. They are buttons, so a reader can click one to filter
- * the board to that verdict; the active one is outlined, and clicking
- * it again clears the filter. */
-.verdict-summary {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin: 0 0 12px;
-}
-
-.verdict-summary button {
-  font: inherit;
-  font-size: 13px;
-  font-weight: 700;
-  background: var(--panel);
-  color: var(--text);
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  padding: 4px 12px;
-  cursor: pointer;
-}
-
-.verdict-summary button:hover {
-  border-color: var(--muted);
-}
-
-.verdict-summary button[aria-pressed="true"] {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
-}
-
-.verdict-summary .count-farm { color: var(--farm); }
-.verdict-summary .count-thin { color: var(--thin); }
-.verdict-summary .count-skip { color: var(--skip); }
+#close-detail:hover { color: var(--text); }
+#detail h2 { padding-right: 36px; font-size: 21px; }
+#detail h3 { margin-top: 18px; }
+#detail .value-build { font-weight: 600; }
+#detail dl { font-size: 13.5px; margin: 0 0 8px; }
+#detail dt { font-weight: 600; float: left; clear: left; width: 150px; }
+#detail dd { margin: 0 0 6px 160px; }
+#detail-steps { padding-left: 20px; font-size: 13.5px; }
+#detail-steps li { margin-bottom: 10px; }

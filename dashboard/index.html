@@ -1,25 +1,27 @@
 <!doctype html>
-<!-- Token Radar — the dashboard page.
+<!-- Token Radar — the dashboard page, v4.
   ~
   ~ A single page, no framework, no network. It loads ../data.js (the
-  ~ board main.ts wrote) and app.js (which renders it). The table shows
-  ~ every pre-token protocol ranked by implied launch value, with the
-  ~ slice, the net and the net per hour of its $1,000 farm plan. The
-  ~ filters narrow it by text, verdict and category, and the sort
-  ~ re-orders it. Clicking a row opens the detail panel on the right
-  ~ with the why, the model breakdown and the seven farm steps.
+  ~ board main.ts wrote) and app.js (which renders it). The board tab
+  ~ shows every pre-token protocol ranked by implied launch value, with
+  ~ the bootstrap band, the slice, the net and the net per hour of its
+  ~ farm plan at the chosen capital. The other tabs account for the
+  ~ rest of the snapshot: the traded tokens kept apart, the pre-token
+  ~ protocols set aside with their reasons, and the method — the fitted
+  ~ line, the out-of-sample tests and the bands, with the scatter plot.
   ~
   ~ The page reads its own state from the address bar, so a link can
-  ~ open a view directly: ?verdict=FARM shows only the farmable rows,
-  ~ ?detail=<slug> opens that protocol's detail panel. The screenshots
-  ~ are taken this way.
+  ~ open a view directly: ?tab=method opens the method, ?verdict=FARM
+  ~ shows only the farmable rows, ?capital=2500 re-nets the board at
+  ~ $2,500, ?detail=<slug> opens that protocol's detail panel. The
+  ~ screenshots are taken this way.
   -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Token Radar — pre-token protocols, priced</title>
-<meta name="description" content="Every protocol with no token yet, priced off the tokens that already trade, with the farm plan for each one.">
+<title>Token Radar — pre-token protocols, priced and proven</title>
+<meta name="description" content="Every protocol with no token yet, priced off the tokens that already trade, with the farm plan for each one — the fit, the out-of-sample tests and the bands shown, not asserted.">
 <link rel="stylesheet" href="app.css">
 </head>
 <body>
@@ -28,20 +30,37 @@
   <h1>Token Radar</h1>
   <p class="sub">Every protocol with no token yet, priced off the tokens that
   already trade — and the farm plan for each one, netted of fees, gas and
-  the yield you give up by parking the capital.</p>
-  <p class="meta" id="meta">Loading…</p>
-  <p class="method">How the value is built: the comparables curve is fitted on this
-  snapshot's traded tokens (log10 market cap = 3.38 + 0.47 × log10 TVL);
-  each protocol's implied value is its curve prediction × its category
-  factor × its week's growth × momentum × maturity × breadth. No name is
-  ever hardcoded — every factor is fitted from this snapshot, and a
-  protocol whose token already trades is kept off the board. Every farm
-  plan names what it costs and how long it takes, step by step.</p>
+  the yield you give up by parking the capital. The value model is
+  fitted on this snapshot and tested out of sample; the numbers are on
+  the page, not taken on trust.</p>
+  <p class="kpis" id="kpis">Loading…</p>
+  <p class="method">How a launch is priced: log10(market cap) = 3.399 + 0.478 ×
+  log10(TVL), fitted at build time from the 101 traded tokens with TVL of
+  $10M or more (R² 0.16); each protocol's implied value is its curve
+  prediction × its category factor × its week's growth × momentum ×
+  maturity × breadth. Leave-one-out: median miss ×3.86, within 3× 42%,
+  within 10× 77%, against ×5.03 / 39% / 74% for one flat mcap/TVL
+  multiple. Time split (fit before 2024, test the 40 listed since):
+  ×3.16 / 48% / 80% against ×5.10 / 40% / 75% flat. Every band on the
+  board is the P10–P90 of 200 bootstrap refits. No name is ever
+  hardcoded — every factor is fitted from this snapshot, and a protocol
+  whose token already trades is kept off the board.</p>
 </header>
 
+<!-- The tabs. Each one is a view of the same snapshot: the ranked
+  ~ board, the traded tokens that price the curve, the pre-token
+  ~ protocols the rule sets aside, and the method with its tests. -->
+<nav class="tabs" aria-label="Views">
+  <button type="button" data-tab="board" id="tab-board">No token yet <span id="count-board"></span></button>
+  <button type="button" data-tab="traded" id="tab-traded">Token trades <span id="count-traded"></span></button>
+  <button type="button" data-tab="setaside" id="tab-setaside">Set aside <span id="count-setaside"></span></button>
+  <button type="button" data-tab="method" id="tab-method">Method</button>
+</nav>
+
 <!-- The filters. Each one re-renders the table as it changes; the
-  ~ search matches the name, the category and the chains. -->
-<section class="filters" aria-label="Filters">
+  ~ search matches the name, the category and the chains. The capital
+  ~ control re-nets every plan on the board at the chosen deposit. -->
+<section class="filters" aria-label="Filters" id="filters">
   <label>Search
     <input id="q" type="search" placeholder="protocol, category or chain" autocomplete="off">
   </label>
@@ -66,58 +85,157 @@
       <option value="tvl_usd">TVL</option>
     </select>
   </label>
+  <fieldset class="capital" id="capital-field">
+    <legend>Capital</legend>
+    <button type="button" data-capital="1000">$1,000</button>
+    <button type="button" data-capital="2500">$2,500</button>
+    <button type="button" data-capital="5000">$5,000</button>
+    <button type="button" data-capital="10000">$10,000</button>
+  </fieldset>
 </section>
 
-<main>
-  <!-- The verdict summary: three pills, one per verdict, each showing
-    ~ how many rows hold it. Clicking a pill sets the verdict filter to
-    ~ that verdict; clicking it again clears the filter. -->
-  <p class="verdict-summary" id="verdict-summary" aria-label="Filter by verdict"></p>
+<div class="layout">
+  <main id="main">
+    <!-- The board tab. The header names the columns; the body is filled
+      ~ by app.js from the data. The rank is the row's place by implied
+      ~ value, the band is its P10–P90 over 200 refits, and the verdict
+      ~ is the plan's worth at $5 net per hour at the chosen capital. -->
+    <section id="view-board" aria-label="Ranked board">
+      <p class="verdict-summary" id="verdict-summary" aria-label="Filter by verdict"></p>
+      <table id="board">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Protocol</th>
+            <th class="num">TVL</th>
+            <th class="num">7d</th>
+            <th>No token for</th>
+            <th class="num">Implied value</th>
+            <th>Band P10–P90</th>
+            <th class="num">Slice</th>
+            <th class="num">Net</th>
+            <th class="num">Net / hr</th>
+            <th>Verdict</th>
+          </tr>
+        </thead>
+        <tbody id="rows"></tbody>
+      </table>
+      <p class="count" id="count"></p>
+      <p class="note">The slice is a tenth of the protocol's implied launch value,
+      pro-rated to the deposit against its TVL. The net is the slice minus
+      fees, gas and the yield given up by parking the capital. FARM means
+      $5 or more net per hands-on hour, THIN means $0 to $5, SKIP means
+      below $0. The capital control re-nets the slice, the net and the
+      verdict at the chosen deposit; the steps are written for the $1,000
+      plan, and only the deposit amount scales.</p>
+    </section>
 
-  <!-- The board. The header names the columns; the body is filled by
-    ~ app.js from the data. The rank is the row's place by implied
-    ~ value, and the verdict is the plan's worth at $5 net per hour. -->
-  <table id="board">
-    <thead>
-      <tr>
-        <th>#</th>
-        <th>Protocol</th>
-        <th>Category</th>
-        <th>Chains</th>
-        <th class="num">TVL</th>
-        <th class="num">7d</th>
-        <th class="num">Implied value</th>
-        <th class="num">Slice $1k</th>
-        <th class="num">Net</th>
-        <th class="num">Net / hr</th>
-        <th>Verdict</th>
-      </tr>
-    </thead>
-    <tbody id="rows"></tbody>
-  </table>
-  <p class="count" id="count"></p>
-  <p class="note">The slice is a tenth of the protocol's implied launch value,
-  pro-rated to a $1,000 deposit against its TVL. The net is the slice
-  minus fees, gas and the yield given up by parking the capital. FARM
-  means $5 or more net per hands-on hour, THIN means $0 to $5, SKIP
-  means below $0.</p>
-</main>
+    <!-- The traded tab. The tokens that already trade, kept apart: they
+      ~ price the curve, they are never ranked by implied value. -->
+    <section id="view-traded" aria-label="Traded tokens" hidden>
+      <p class="note">The 416 protocols whose token already trades. They are kept
+      apart from the board: 128 carry a market cap, and 101 of those — the
+      ones with TVL of $10M or more — are the comparables the curve is
+      fitted on. The rest record a token but no market cap on this
+      snapshot.</p>
+      <table id="traded-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Protocol</th>
+            <th>Category</th>
+            <th class="num">TVL</th>
+            <th class="num">Market cap</th>
+            <th>Listed</th>
+            <th>Prices the curve</th>
+          </tr>
+        </thead>
+        <tbody id="traded-rows"></tbody>
+      </table>
+      <p class="count" id="traded-count"></p>
+    </section>
+
+    <!-- The set-aside tab. Every pre-token protocol the rule excludes,
+      ~ with the reason, so nothing is dropped silently. -->
+    <section id="view-setaside" aria-label="Set aside" hidden>
+      <p class="note">The 144 pre-token protocols the field-guide rule sets aside.
+      Each one names the rule that excluded it: a bridge, a liquid-staking
+      or restaking product, a CEX, a versioned release, a wrapped or
+      staked product, or the exchange itself.</p>
+      <table id="setaside-table">
+        <thead>
+          <tr>
+            <th>Protocol</th>
+            <th>Category</th>
+            <th>Why it is set aside</th>
+          </tr>
+        </thead>
+        <tbody id="setaside-rows"></tbody>
+      </table>
+      <p class="count" id="setaside-count"></p>
+    </section>
+
+    <!-- The method tab. The fit, the two out-of-sample tests and the
+      ~ bands, with the scatter plot — the proof, rendered from the same
+      ~ numbers the program computed. -->
+    <section id="view-method" aria-label="Method" hidden>
+      <h2>How a launch is priced</h2>
+      <p id="method-fit"></p>
+      <div class="method-grid">
+        <div>
+          <h3>The fit</h3>
+          <div id="method-scatter"></div>
+          <p class="note" id="method-scatter-note"></p>
+        </div>
+        <div>
+          <h3>Out of sample</h3>
+          <dl id="method-tests"></dl>
+          <h3>The bands</h3>
+          <p id="method-bands"></p>
+          <h3>The farm plan</h3>
+          <p id="method-plan"></p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- The sidebar: the market line, the farms worth doing next, and the
+    ~ validation in one box. It sits beside the board, so the first
+    ~ screenshot shows the proof next to the ranking. -->
+  <aside class="side" aria-label="Model and next farms">
+    <section class="side-box">
+      <h2>Market line</h2>
+      <div id="side-scatter"></div>
+      <p class="note" id="side-scatter-note"></p>
+    </section>
+    <section class="side-box">
+      <h2>Farm next</h2>
+      <p class="note" id="farm-next-note"></p>
+      <ol id="farm-next"></ol>
+    </section>
+    <section class="side-box">
+      <h2>Out of sample</h2>
+      <dl id="side-validation"></dl>
+    </section>
+  </aside>
+</div>
 
 <!-- The detail panel. Hidden until a row is clicked. It shows the
-  ~ protocol's why, the valuation broken down, and the seven farm steps.
-  ~ The close button and the Escape key both hide it again. -->
+  ~ protocol's why, the valuation broken down with its bootstrap band
+  ~ and rank range, and the seven farm steps. The close button and the
+  ~ Escape key both hide it again. -->
 <aside id="detail" aria-label="Selected protocol" hidden>
   <button id="close-detail" type="button" aria-label="Close detail">×</button>
   <h2 id="detail-name"></h2>
   <p id="detail-why"></p>
   <p class="value-build" id="detail-build"></p>
   <dl id="detail-model"></dl>
-  <h3>Farm plan</h3>
+  <h3>Farm plan <span id="detail-capital-note"></span></h3>
   <ol id="detail-steps"></ol>
 </aside>
 
 <!-- The data first, then the script that renders it. data.js assigns
-  ~ window.TOKEN_RADAR_DATA; app.js reads it and builds the table. -->
+  ~ window.TOKEN_RADAR_DATA; app.js reads it and builds the page. -->
 <script src="../data.js"></script>
 <script src="app.js"></script>
 
