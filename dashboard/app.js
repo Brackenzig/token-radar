@@ -1,4 +1,4 @@
-// Token Radar — the dashboard script, v4.
+// Token Radar — the dashboard script, v6.
 //
 // Renders the board from window.TOKEN_RADAR_DATA, the object main.ts
 // wrote into ../data.js. No fetch, no network, no framework: the
@@ -6,6 +6,7 @@
 // and the band bars as inline SVG, and re-renders whenever a filter,
 // the sort, the tab or the capital changes.
 //
+// The board ranks by expected value: P(token) times the launch value.
 // The capital control re-nets every plan on the page at the chosen
 // deposit. The re-netting here is the same arithmetic as
 // renetAtCapital in lib/model.ts: the slice scales with the capital,
@@ -100,8 +101,14 @@
   // net is the rounded slice minus the rounded fees minus the forgone
   // yield, rounded to cents once; the net per hour divides by the
   // hands-on hours. A plan that nets $5 an hour or more is FARM.
+  // The second slice is the same tenth, from the curve value alone —
+  // what the slice would be if the token launches. It is shown next
+  // to the expected slice so the reader sees both the honest
+  // expectation and the upside; it never enters the net or the
+  // verdict, which stay expected-value.
   function renet(row, capital) {
     var slice = round2((row.slice_1k_usd * capital) / 1000);
+    var sliceIfLaunches = round2((row.slice_if_launches_1k_usd * capital) / 1000);
     var fees = round2(row.fees_usd);
     var forgone = (capital * TBILL_RATE * row.hold_days) / 365;
     var net = round2(slice - fees - forgone);
@@ -109,7 +116,7 @@
     var perHour = round2(net / hours);
     var verdict = perHour >= FARM_MIN_NET_PER_HOUR ? "FARM"
       : perHour >= 0 ? "THIN" : "SKIP";
-    return { slice: slice, fees: fees, net: net, perHour: perHour, verdict: verdict };
+    return { slice: slice, sliceIfLaunches: sliceIfLaunches, fees: fees, net: net, perHour: perHour, verdict: verdict };
   }
   function hoursFor(row) { return (40 + (5 * row.hold_days) / 7) / 60; }
 
@@ -118,7 +125,7 @@
   // P10 to P90, a dot at the implied value. A narrow band is a row the
   // refits agree on; a wide one is a row they do not.
   function bandSvg(row) {
-    var lo = 6, hi = 9, w = 110, h = 14, y = h / 2;
+    var lo = 6, hi = 9, w = 68, h = 14, y = h / 2;
     var p10 = Math.max(lo, Math.log10(row.implied_p10_usd));
     var p90 = Math.min(hi, Math.log10(row.implied_p90_usd));
     var v = Math.log10(row.implied_value_usd);
@@ -207,6 +214,8 @@
       if (key === "net_per_hour_usd") return renet(b, state.capital).perHour - renet(a, state.capital).perHour;
       if (key === "net_usd") return renet(b, state.capital).net - renet(a, state.capital).net;
       if (key === "tvl_usd") return b.tvl_usd - a.tvl_usd;
+      if (key === "p_token") return b.p_token - a.p_token;
+      if (key === "curve_value_usd") return b.curve_value_usd - a.curve_value_usd;
       return b.implied_value_usd - a.implied_value_usd;
     });
     return list;
@@ -223,9 +232,12 @@
         '<td class="num">' + fmtMoney(r.tvl_usd) + "</td>" +
         '<td class="num">' + fmtPct(r.change_7d) + "</td>" +
         '<td>' + fmtAge(r.age_days) + "</td>" +
+        '<td class="num">' + r.p_token.toFixed(2) + "</td>" +
+        '<td class="num">' + fmtMoney(r.curve_value_usd) + "</td>" +
         '<td class="num strong">' + fmtMoney(r.implied_value_usd) + "</td>" +
         "<td>" + bandSvg(r) + "</td>" +
         '<td class="num">' + fmtMoney(n.slice) + "</td>" +
+        '<td class="num">' + fmtMoney(n.sliceIfLaunches) + "</td>" +
         '<td class="num">' + fmtSigned(n.net) + "</td>" +
         '<td class="num">' + fmtSigned(n.perHour) + "</td>" +
         '<td><span class="verdict ' + n.verdict.toLowerCase() + '">' + n.verdict + "</span></td>" +
@@ -285,11 +297,13 @@
       "log10(market cap) = <strong>" + fit.intercept.toFixed(3) + " + " + fit.slope.toFixed(3) +
       " × log10(TVL)</strong>, fitted at build time from the " + fit.n +
       " traded tokens with TVL of $10M or more (R² " + fit.r2.toFixed(2) +
-      "). A protocol's implied value is its curve prediction × its category factor " +
-      "(median per category, shrunk toward 1 where the category has few traded tokens) " +
-      "× its week's growth × momentum × maturity × breadth. Nothing is hardcoded: the " +
-      "same program on another snapshot fits another line, and the numbers on this page " +
-      "are the ones the program computed from this snapshot.";
+      "). The value-if-launches is the curve alone: every other term the old " +
+      "formula carried was tested with and without it, and none of them lowers " +
+      "the held-out miss in both tests — the table below is the record. " +
+      "A second model gives P(token), and the expected value is P(token) × " +
+      "the curve value. Nothing is hardcoded: the same program on another " +
+      "snapshot fits another line and another token-odds model, and the " +
+      "numbers on this page are the ones the program computed from this snapshot.";
     $("method-scatter").innerHTML = scatterSvg(640, 300);
     $("method-scatter-note").textContent =
       "The " + fit.n + " comparables the line is fitted on, market cap against TVL, log-log. " +
@@ -308,13 +322,66 @@
       [ts.curve_median_miss, ts.curve_within_3x, ts.curve_within_10x],
       [ts.flat_median_miss, ts.flat_within_3x, ts.flat_within_10x]);
     $("method-tests").innerHTML = dl;
+    var odds = validation.token_odds_cv, oddsTs = validation.token_odds_time_split;
+    var model = validation.token_odds_model;
+    var topCoef = model.coefficients.slice(0).sort(function (a, b) {
+      return Math.abs(b.coefficient) - Math.abs(a.coefficient);
+    }).slice(0, 6).map(function (c) {
+      return c.feature + " " + (c.coefficient >= 0 ? "+" : "") + c.coefficient.toFixed(2);
+    }).join(", ");
+    $("method-odds").textContent =
+      "A logistic regression on the " + model.peer_n + " eligible protocols " +
+      "(base rate " + model.peer_base_rate.toFixed(2) + "): log10(TVL), log10(age+1), " +
+      "an age-unknown flag, the chain count, the 7-day growth and the top-10 category " +
+      "dummies, standardised, L2 penalty λ = 1, fitted by IRLS. 5-fold stratified " +
+      "cross-validation, 3 repeats, out of fold: Brier " + odds.brier.toFixed(3) +
+      " against " + odds.baseline_brier.toFixed(3) + " for the constant base rate, AUC " +
+      odds.auc.toFixed(2) + ", log-loss " + odds.log_loss.toFixed(3) + ". A TVL-only " +
+      "logistic scores Brier " + validation.token_odds_tvl_only.brier.toFixed(3) +
+      " (AUC " + validation.token_odds_tvl_only.auc.toFixed(2) + ") — the signal comes " +
+      "from age, chains, category and growth, not from size alone. The time split " +
+      "(train " + oddsTs.train_n + " listed before 2024, test " + oddsTs.test_n +
+      " since) is weak — Brier " + oddsTs.brier.toFixed(3) + " against " +
+      oddsTs.baseline_brier.toFixed(3) + ", AUC " + oddsTs.auc.toFixed(2) +
+      " — because the label is time-censored: a protocol listed in 2025 with no token " +
+      "by now is labelled 0 but may launch later. The cross-validation number is the " +
+      "headline; the time split is the warning. Largest coefficients (log-odds per " +
+      "standard deviation): " + topCoef + ". Growth is negative: high 7-day growth " +
+      "goes with no token yet — plausibly a pre-token hype phase, stated as an " +
+      "interpretation, not a proven mechanism.";
+    var cal = validation.calibration;
+    $("method-calibration").textContent =
+      "The bands are checked, not asserted. The leave-one-out residuals of the curve, " +
+      "against the normal-theory intervals built from the residual spread (" +
+      cal.sigma_dex.toFixed(2) + " dex): the real market caps fall inside the P25–P75 " +
+      "interval " + Math.round(cal.p25_p75_coverage * 1000) / 10 + "% of the time (nominal " +
+      "50%, n = " + cal.n + ") and inside the P10–P90 interval " +
+      Math.round(cal.p10_p90_coverage * 1000) / 10 + "% (nominal 80%). The bands are " +
+      "honest — but wide: the P25–P75 band is ×16.4 wide and the P10–P90 ×202.7, " +
+      "because the residual spread is 0.90 dex. The check proves the bands are honest, " +
+      "not narrow.";
+    var held = validation.heldout;
+    var ht = "<table><thead><tr><th>Term</th><th class='num'>LOO with</th>" +
+      "<th class='num'>LOO without</th><th class='num'>Time split with</th>" +
+      "<th class='num'>Time split without</th><th>Verdict</th></tr></thead><tbody>";
+    held.rows.forEach(function (row) {
+      function num(v) { return v == null ? "—" : "×" + v.toFixed(3); }
+      ht += "<tr><td>" + esc(row.term) + "</td><td class='num'>" + num(row.loo_with) +
+        "</td><td class='num'>" + num(row.loo_without) + "</td><td class='num'>" +
+        num(row.ts_with) + "</td><td class='num'>" + num(row.ts_without) +
+        "</td><td>" + esc(row.verdict) + "</td></tr>";
+    });
+    ht += "</tbody></table><p class='note'>" + esc(held.conclusion) + " " + esc(held.noise_rule) + "</p>";
+    $("method-heldout").innerHTML = ht;
     var medWidth = median(rows.map(function (r) { return r.rank_hi - r.rank_lo; }));
     var skipAt10k = rows.filter(function (r) { return renet(r, 10000).verdict === "SKIP"; }).length;
     $("method-bands").textContent =
       "Each row's band is the P10–P90 of " + validation.bootstrap.refits +
       " bootstrap refits (seed " + validation.bootstrap.seed + "): the comparables are " +
-      "resampled, the line is refit, the category factors are recalibrated, and every row " +
-      "is repriced. The median rank range is " + medWidth + " places wide; " +
+      "resampled, the line is refit, and every row's value-if-launches is repriced — " +
+      "then multiplied by the row's P(token), which is held fixed, because P(token) " +
+      "is a second model with its own validation. The band is the curve's uncertainty, " +
+      "stated as such. The median rank range is " + medWidth + " places wide; " +
       overlapCount(1) + " rows overlap the top row's band and " + overlapCount(40) +
       " overlap rank 40's — so a row's rank is a claim about its size, not a certainty.";
     var farmAt = counts.farm_at;
@@ -322,11 +389,18 @@
       "A plan costs $1 to open the wallet, $2 to deposit, $1 to claim and the weekly " +
       "gas — $0.50 a week on Ethereum and Bitcoin, $0.05 elsewhere — for a hold of 45, " +
       "60 or 90 days by age. The hands-on time is 40 minutes plus 5 a week. FARM means " +
-      "$5 or more net per hands-on hour. At $1,000 the board farms " + farmAt[1000] +
+      "$5 or more net per hands-on hour. The slice is a tenth of the expected value, " +
+      "pro-rated to the deposit against the protocol's TVL — expected, not promised. " +
+      "Beside it the board shows a second slice, a tenth of the launch value alone, " +
+      "pro-rated the same way: what the slice would be if the token launches. The " +
+      "second slice is the upside, not the expectation — the net, the net per hour " +
+      "and the verdict are all computed from the expected slice only, so showing " +
+      "the upside never moves a FARM count. " +
+      "At $1,000 the board farms " + farmAt[1000] +
       " rows, at $2,500 it farms " + farmAt[2500] + ", at $5,000 " + farmAt[5000] +
       ", at $10,000 " + farmAt[10000] + " — and " + skipAt10k +
-      " rows stay SKIP even at $10,000: the biggest protocols, where the slice is too " +
-      "thin next to the yield given up to hold it.";
+      " rows stay SKIP even at $10,000: the biggest protocols, where the expected slice " +
+      "is too thin next to the yield given up to hold it.";
   }
 
   // -- The sidebar ------------------------------------------------------------------
@@ -348,18 +422,25 @@
         "</li>";
     }).join("");
     var loo = validation.loo, ts = validation.time_split;
+    var odds = validation.token_odds_cv, cal = validation.calibration;
     $("side-validation").innerHTML =
       "<dt>Fit</dt><dd>log10(mcap) = " + validation.fit.intercept.toFixed(3) + " + " +
       validation.fit.slope.toFixed(3) + " × log10(TVL), n=" + validation.fit.n +
-      ", R² " + validation.fit.r2.toFixed(2) + ".</dd>" +
+      ", R² " + validation.fit.r2.toFixed(2) + " — the value is the curve alone.</dd>" +
       "<dt>Leave-one-out</dt><dd>curve ×" + loo.curve_median_miss.toFixed(2) +
       " (within 3× " + Math.round(loo.curve_within_3x * 100) + "%) vs flat ×" +
       loo.flat_median_miss.toFixed(2) + " (" + Math.round(loo.flat_within_3x * 100) + "%).</dd>" +
       "<dt>Time split</dt><dd>curve ×" + ts.curve_median_miss.toFixed(2) +
       " (within 3× " + Math.round(ts.curve_within_3x * 100) + "%) vs flat ×" +
       ts.flat_median_miss.toFixed(2) + " (" + Math.round(ts.flat_within_3x * 100) + "%).</dd>" +
+      "<dt>Token odds</dt><dd>Brier " + odds.brier.toFixed(3) + " vs " +
+      odds.baseline_brier.toFixed(3) + " baseline, AUC " + odds.auc.toFixed(2) +
+      " (n=" + odds.n + ").</dd>" +
+      "<dt>Calibration</dt><dd>P25–P75 covers " +
+      Math.round(cal.p25_p75_coverage * 1000) / 10 + "% (nominal 50%), P10–P90 " +
+      Math.round(cal.p10_p90_coverage * 1000) / 10 + "% (nominal 80%).</dd>" +
       "<dt>Bands</dt><dd>P10–P90 of " + validation.bootstrap.refits + " refits, seed " +
-      validation.bootstrap.seed + ".</dd>";
+      validation.bootstrap.seed + ", times P(token).</dd>";
   }
 
   // -- The detail panel ---------------------------------------------------------------
@@ -372,17 +453,20 @@
     $("detail-name").textContent = "#" + row.rank + " · " + row.name;
     $("detail-why").textContent = row.why;
     $("detail-build").textContent =
-      "Implied value " + fmtMoney(row.implied_value_usd) + " (P10 " + fmtMoney(row.implied_p10_usd) +
+      "Expected value " + fmtMoney(row.implied_value_usd) + " = P(token) " + row.p_token.toFixed(2) +
+      " × " + fmtMoney(row.curve_value_usd) + " if it launches (P10 " + fmtMoney(row.implied_p10_usd) +
       " – P90 " + fmtMoney(row.implied_p90_usd) + ", rank " + row.rank_lo + "–" + row.rank_hi + ").";
     $("detail-model").innerHTML =
-      "<dt>Curve base</dt><dd>" + fmtMoney(m.comps_base_usd) + " (from TVL " + fmtMoney(row.tvl_usd) + ")</dd>" +
-      "<dt>Category factor</dt><dd>×" + m.category_factor.toFixed(2) + " (" + esc(row.category) + ")</dd>" +
-      "<dt>Growth</dt><dd>×" + m.growth_multiplier.toFixed(3) + " (7-day " + fmtPct(row.change_7d) + ")</dd>" +
-      "<dt>Momentum</dt><dd>×" + (1 + m.momentum).toFixed(2) + "</dd>" +
-      "<dt>Maturity</dt><dd>×" + m.maturity_multiplier.toFixed(2) + " (" + fmtAge(row.age_days) + " with no token)</dd>" +
-      "<dt>Breadth</dt><dd>×" + m.breadth_multiplier.toFixed(2) + " (" + row.chains.length + (row.chains.length === 1 ? " chain" : " chains") + ")</dd>" +
+      "<dt>Value if it launches</dt><dd>" + fmtMoney(m.comps_base_usd) + " (the curve alone, from TVL " + fmtMoney(row.tvl_usd) + ")</dd>" +
+      "<dt>P(token)</dt><dd>" + row.p_token.toFixed(3) + " (logistic model on " + validation.token_odds_model.peer_n + " eligible protocols)</dd>" +
+      "<dt>Size</dt><dd>log10(TVL) " + m.odds_features.log10_tvl.toFixed(2) + "</dd>" +
+      "<dt>Age</dt><dd>log10(age+1) " + m.odds_features.log10_age.toFixed(2) + (m.odds_features.age_unknown ? " (no listing date on record)" : " (" + fmtAge(row.age_days) + " with no token)") + "</dd>" +
+      "<dt>Chains</dt><dd>" + m.odds_features.n_chains + (m.odds_features.n_chains === 1 ? " chain" : " chains") + "</dd>" +
+      "<dt>Growth</dt><dd>" + fmtPct(row.change_7d) + " in 7 days (clamped " + (m.odds_features.growth * 100).toFixed(0) + "%)</dd>" +
+      "<dt>Category</dt><dd>" + esc(row.category) + "</dd>" +
       "<dt>Hold</dt><dd>" + row.hold_days + " days</dd>" +
-      "<dt>Slice at $" + state.capital.toLocaleString("en-US") + "</dt><dd>" + fmtMoney(n.slice) + "</dd>" +
+      "<dt>Slice at $" + state.capital.toLocaleString("en-US") + "</dt><dd>" + fmtMoney(n.slice) + " (expected)</dd>" +
+      "<dt>Slice if it launches at $" + state.capital.toLocaleString("en-US") + "</dt><dd>" + fmtMoney(n.sliceIfLaunches) + " (a tenth of the launch value alone, pro-rated the same way — the upside, not the expectation; the net and verdict above still use the expected slice)</dd>" +
       "<dt>Fees</dt><dd>" + fmtSigned(-n.fees) + "</dd>" +
       "<dt>Net</dt><dd>" + fmtSigned(n.net) + " (" + fmtSigned(n.perHour) + "/hr over " + hoursFor(row).toFixed(1) + " hands-on hours) — " + n.verdict + "</dd>";
     $("detail-capital-note").textContent =

@@ -1,13 +1,4 @@
-/* Token Radar — a ledger, not a terminal.
- *
- * No web fonts, no images, no network. Paper and ink: the board is a
- * ledger page, the colour is spent on the verdicts — green for FARM,
- * amber for THIN, red for SKIP — so a reader can scan a hundred rows
- * and see at once which plans are worth doing. The layout is full
- * width, 1440px at most, with a sidebar beside the table, so the first
- * screenshot shows the market line, the farms worth doing next and the
- * validation next to the ranking.
- */
+/* Token Radar — a ledger, not a terminal. (v6) */
 
 /* -- The palette -------------------------------------------------------- */
 
@@ -209,6 +200,11 @@ th, td {
   border-bottom: 1px solid var(--line-soft);
   vertical-align: middle;
 }
+/* The board has fourteen columns since the if-launches slice was
+ * added beside the expected slice: tighter cells and a narrower band,
+ * so the verdict column stays on the page instead of sliding behind
+ * the sidebar. */
+#board th, #board td { padding: 7px 6px; }
 thead th {
   font-size: 11.5px;
   text-transform: uppercase;
@@ -229,7 +225,7 @@ td.strong { font-weight: 600; }
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 220px;
+  max-width: 140px;
 }
 .rowlink {
   font: inherit;
@@ -298,7 +294,13 @@ td.strong { font-weight: 600; }
 @media (max-width: 900px) { .method-grid { grid-template-columns: 1fr; } }
 #method-tests dt { font-weight: 600; margin-top: 10px; }
 #method-tests dd { margin: 0 0 4px; }
-#method-bands, #method-plan { font-size: 14px; }
+#method-bands, #method-plan, #method-odds, #method-calibration { font-size: 14px; }
+
+/* The held-out table: the term-by-term evidence, at a smaller size so
+ * six columns fit the method column. The verdict column never wraps. */
+#method-heldout table { font-size: 12px; }
+#method-heldout th, #method-heldout td { padding: 5px 7px; }
+#method-heldout td:last-child { white-space: nowrap; }
 
 /* -- The detail panel ---------------------------------------------------------- */
 
