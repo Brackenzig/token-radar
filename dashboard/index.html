@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- Token Radar — the dashboard page, v4.
+<!-- Token Radar — the dashboard page, v6.
   ~
   ~ A single page, no framework, no network. It loads ../data.js (the
   ~ board main.ts wrote) and app.js (which renders it). The board tab
@@ -20,31 +20,41 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Token Radar — pre-token protocols, priced and proven</title>
-<meta name="description" content="Every protocol with no token yet, priced off the tokens that already trade, with the farm plan for each one — the fit, the out-of-sample tests and the bands shown, not asserted.">
+<title>Token Radar — pre-token protocols, priced by expected value</title>
+<meta name="description" content="Every protocol with no token yet, ranked by expected value — the launch value times the probability it launches — with the farm plan for each one. Two models, fitted on this snapshot and tested out of sample; the numbers are on the page, not taken on trust.">
 <link rel="stylesheet" href="app.css">
 </head>
 <body>
 
 <header>
   <h1>Token Radar</h1>
-  <p class="sub">Every protocol with no token yet, priced off the tokens that
-  already trade — and the farm plan for each one, netted of fees, gas and
-  the yield you give up by parking the capital. The value model is
-  fitted on this snapshot and tested out of sample; the numbers are on
-  the page, not taken on trust.</p>
+  <p class="sub">Every protocol with no token yet, ranked by expected value —
+  the value its launch would carry, times the probability it launches —
+  and the farm plan for each one, netted of fees, gas and the yield you
+  give up by parking the capital. Two models are fitted on this snapshot
+  and tested out of sample; the numbers are on the page, not taken on
+  trust.</p>
   <p class="kpis" id="kpis">Loading…</p>
   <p class="method">How a launch is priced: log10(market cap) = 3.399 + 0.478 ×
   log10(TVL), fitted at build time from the 101 traded tokens with TVL of
-  $10M or more (R² 0.16); each protocol's implied value is its curve
-  prediction × its category factor × its week's growth × momentum ×
-  maturity × breadth. Leave-one-out: median miss ×3.86, within 3× 42%,
+  $10M or more (R² 0.16) — and the curve alone is the value: every other
+  term the old formula carried was tested with and without it, and none
+  of them lowers the held-out miss, so none of them is in the price. A
+  second model, a logistic regression on the 442 eligible protocols,
+  gives P(token): Brier 0.196 against 0.247 for the constant base rate,
+  AUC 0.77. The expected value is P(token) × the curve value. The curve
+  alone overstates the biggest protocols by up to 4× — Sentora Curator
+  is $82.3M if it launches, but its P is 0.24, so its expected value is
+  $19.5M. Leave-one-out on the curve: median miss ×3.86, within 3× 42%,
   within 10× 77%, against ×5.03 / 39% / 74% for one flat mcap/TVL
   multiple. Time split (fit before 2024, test the 40 listed since):
-  ×3.16 / 48% / 80% against ×5.10 / 40% / 75% flat. Every band on the
-  board is the P10–P90 of 200 bootstrap refits. No name is ever
-  hardcoded — every factor is fitted from this snapshot, and a protocol
-  whose token already trades is kept off the board.</p>
+  ×3.16 / 48% / 80% against ×5.10 / 40% / 75% flat. The bands are
+  checked, not asserted: the real market caps fall inside the P25–P75
+  band 50.5% of the time (nominal 50%) and inside the P10–P90 band 82.2%
+  (nominal 80%). Every band on the board is the P10–P90 of 200 bootstrap
+  refits, times the row's P(token). No name is ever hardcoded — every
+  factor is fitted from this snapshot, and a protocol whose token already
+  trades is kept off the board.</p>
 </header>
 
 <!-- The tabs. Each one is a view of the same snapshot: the ranked
@@ -79,7 +89,9 @@
   </label>
   <label>Sort by
     <select id="sort">
-      <option value="implied_value_usd">Implied value</option>
+      <option value="implied_value_usd">Expected value</option>
+      <option value="p_token">P(token)</option>
+      <option value="curve_value_usd">If it launches</option>
       <option value="net_per_hour_usd">Net per hour</option>
       <option value="net_usd">Net per plan</option>
       <option value="tvl_usd">TVL</option>
@@ -97,9 +109,10 @@
 <div class="layout">
   <main id="main">
     <!-- The board tab. The header names the columns; the body is filled
-      ~ by app.js from the data. The rank is the row's place by implied
-      ~ value, the band is its P10–P90 over 200 refits, and the verdict
-      ~ is the plan's worth at $5 net per hour at the chosen capital. -->
+      ~ by app.js from the data. The rank is the row's place by expected
+      ~ value, the band is its P10–P90 over 200 refits times its P(token),
+      ~ and the verdict is the plan's worth at $5 net per hour at the
+      ~ chosen capital. -->
     <section id="view-board" aria-label="Ranked board">
       <p class="verdict-summary" id="verdict-summary" aria-label="Filter by verdict"></p>
       <table id="board">
@@ -109,10 +122,13 @@
             <th>Protocol</th>
             <th class="num">TVL</th>
             <th class="num">7d</th>
-            <th>No token for</th>
-            <th class="num">Implied value</th>
+            <th>Age</th>
+            <th class="num">P(token)</th>
+            <th class="num">Launches</th>
+            <th class="num">Exp. value</th>
             <th>Band P10–P90</th>
-            <th class="num">Slice</th>
+            <th class="num">Slice (EV)</th>
+            <th class="num">Slice (if launches)</th>
             <th class="num">Net</th>
             <th class="num">Net / hr</th>
             <th>Verdict</th>
@@ -121,13 +137,22 @@
         <tbody id="rows"></tbody>
       </table>
       <p class="count" id="count"></p>
-      <p class="note">The slice is a tenth of the protocol's implied launch value,
-      pro-rated to the deposit against its TVL. The net is the slice minus
-      fees, gas and the yield given up by parking the capital. FARM means
-      $5 or more net per hands-on hour, THIN means $0 to $5, SKIP means
-      below $0. The capital control re-nets the slice, the net and the
-      verdict at the chosen deposit; the steps are written for the $1,000
-      plan, and only the deposit amount scales.</p>
+      <p class="note">The expected value is P(token) × the launch value: the
+      curve alone says what the token would be worth at this TVL, and the
+      token-odds model says how likely the protocol is to launch one. The
+      slice is a tenth of the protocol's expected value, pro-rated to the
+      deposit against its TVL — expected, not promised. Beside it the
+      board shows a second slice, a tenth of the launch value alone,
+      pro-rated the same way: what the slice would be if the token
+      launches. That second slice is the upside, not the expectation —
+      the net, the net per hour and the verdict are all computed from
+      the expected slice only, so showing the upside never moves a FARM
+      count. The net is the expected slice minus fees, gas and the yield
+      given up by parking the capital.
+      FARM means $5 or more net per hands-on hour, THIN means $0 to $5,
+      SKIP means below $0. The capital control re-nets the slice, the net
+      and the verdict at the chosen deposit; the steps are written for the
+      $1,000 plan, and only the deposit amount scales.</p>
     </section>
 
     <!-- The traded tab. The tokens that already trade, kept apart: they
@@ -175,8 +200,9 @@
       <p class="count" id="setaside-count"></p>
     </section>
 
-    <!-- The method tab. The fit, the two out-of-sample tests and the
-      ~ bands, with the scatter plot — the proof, rendered from the same
+    <!-- The method tab. The fit, the two out-of-sample tests, the
+      ~ token-odds model, the calibration check and the held-out table,
+      ~ with the scatter plot — the proof, rendered from the same
       ~ numbers the program computed. -->
     <section id="view-method" aria-label="Method" hidden>
       <h2>How a launch is priced</h2>
@@ -186,10 +212,22 @@
           <h3>The fit</h3>
           <div id="method-scatter"></div>
           <p class="note" id="method-scatter-note"></p>
+          <h3>Why the value is the curve alone</h3>
+          <p class="note">Every term the old formula carried was tested with
+          and without it, on the same pool and test set. The table below is
+          the recorded result of those experiments — a term must lower the
+          miss in BOTH leave-one-out and the time split to count as KEEP,
+          and a LOO difference under ~0.5 or a time-split difference under
+          ~0.8 is inside noise.</p>
+          <div id="method-heldout"></div>
         </div>
         <div>
           <h3>Out of sample</h3>
           <dl id="method-tests"></dl>
+          <h3>The token-odds model</h3>
+          <p id="method-odds"></p>
+          <h3>Calibration</h3>
+          <p id="method-calibration"></p>
           <h3>The bands</h3>
           <p id="method-bands"></p>
           <h3>The farm plan</h3>
