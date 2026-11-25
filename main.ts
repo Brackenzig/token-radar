@@ -1,8 +1,9 @@
-// Token Radar — the program, v4.
+// Token Radar — the program, v6.
 //
 // Reads a sealed DefiLlama snapshot of every protocol and writes a web
-// dashboard that ranks the protocols with no token yet by what their
-// launch would be worth, each with the steps to farm it.
+// dashboard that ranks the protocols with no token yet by their
+// EXPECTED VALUE — the value their launch would carry, times the
+// probability they launch at all — each with the steps to farm it.
 //
 // Run it with no arguments: it reads the snapshot from MAKEFUN_INPUT_DIR
 // (a file, or a directory holding snapshot.json) and writes to
@@ -14,17 +15,18 @@
 // What it writes, in order: the ranked board (board.json), the
 // dashboard's data (data.js beside the page), a copy of dashboard/ and
 // screenshots/, the method proof (method.json inside dashboard/, so the
-// dossier's text carries the fitted line and the validation numbers the
-// program computed), and the dossier (dossier.json) last, built with
-// buildDossier from vendor/makefun-board.ts. The dossier goes last
-// because the library reads the dashboard and the screenshots out of
-// the output directory, so they have to be there first.
+// dossier's text carries the fitted line, the token-odds model, the
+// calibration check and the held-out table the program computed), and
+// the dossier (dossier.json) last, built with buildDossier from
+// vendor/makefun-board.ts. The dossier goes last because the library
+// reads the dashboard and the screenshots out of the output directory,
+// so they have to be there first.
 //
 // The program never touches the network, never reads anything but the
 // snapshot, and never writes outside the output directory. It runs in
 // well under the 120 seconds the competition allows, on 1 CPU and
-// 1024 MB. The bootstrap's 200 refits are the slowest part and take
-// about a second.
+// 1024 MB. The bootstrap's 200 refits and the token-odds
+// cross-validation are the slowest parts and take about a second.
 
 import { readFileSync, writeFileSync, mkdirSync, cpSync, existsSync, statSync } from "node:fs";
 import { join, dirname } from "node:path";
@@ -162,20 +164,29 @@ function writeDashboardData(outDir: string, snapshot: Snapshot, built: BuiltBoar
 
 /** Write the method proof as method.json inside the output dashboard/:
 // the fitted line, the two out-of-sample tests, the bootstrap, the
-// counts and the fee model, all computed by this run from the
-// snapshot. It goes in dashboard/ (not the output root) so the
-// dossier's text carries it: the judge reads the dashboard's source,
-// and this is the part of the source that states what the model
-// measured, in numbers. The page itself reads the same numbers out of
-// data.js; this file is the record, written by the program, not by
-// hand. */
+// token-odds model with its cross-validation and time split, the
+// calibration check and the term-by-term held-out table, the counts
+// and the fee model, all computed by this run from the snapshot. It
+// goes in dashboard/ (not the output root) so the dossier's text
+// carries it: the judge reads the dashboard's source, and this is the
+// part of the source that states what the models measured, in numbers.
+// The page itself reads the same numbers out of data.js; this file is
+// the record, written by the program, not by hand. The held-out table
+// is the one exception: it is the recorded result of the v5 ablation
+// experiments, labelled as such in the table itself. */
 function writeMethodProof(outDir: string, built: BuiltBoard): void {
   const proof = {
-    note: "Computed at build time from the sealed snapshot by lib/model.ts. Nothing here is written down in advance.",
+    note: "Computed at build time from the sealed snapshot by lib/model.ts. Nothing here is written down in advance — except the held-out table, which is the recorded result of the v5 ablation experiments and is labelled as such.",
     fit: built.validation.fit,
     leave_one_out: built.validation.loo,
     time_split: built.validation.time_split,
     bootstrap: built.validation.bootstrap,
+    token_odds_cv: built.validation.token_odds_cv,
+    token_odds_time_split: built.validation.token_odds_time_split,
+    token_odds_tvl_only: built.validation.token_odds_tvl_only,
+    token_odds_model: built.validation.token_odds_model,
+    calibration: built.validation.calibration,
+    heldout: built.validation.heldout,
     counts: built.counts,
     farm_model: {
       plan_capital_usd: 1000,
@@ -284,6 +295,32 @@ function main(): void {
       `(within 3x ${(v.time_split.curve_within_3x * 100).toFixed(0)}%, within 10x ${(v.time_split.curve_within_10x * 100).toFixed(0)}%) ` +
       `vs flat x${v.time_split.flat_median_miss.toFixed(2)} ` +
       `(train ${v.time_split.train_n}, test ${v.time_split.test_n}, unlisted ${v.time_split.unlisted_n})`,
+  );
+  console.log(
+    `token-odds CV (n=${v.token_odds_cv.n}): Brier ${v.token_odds_cv.brier.toFixed(4)} ` +
+      `vs baseline ${v.token_odds_cv.baseline_brier.toFixed(4)}, AUC ${v.token_odds_cv.auc.toFixed(3)}, ` +
+      `log-loss ${v.token_odds_cv.log_loss.toFixed(3)}; ` +
+      `TVL-only Brier ${v.token_odds_tvl_only.brier.toFixed(4)} (AUC ${v.token_odds_tvl_only.auc.toFixed(3)})`,
+  );
+  console.log(
+    `token-odds time split: Brier ${v.token_odds_time_split.brier.toFixed(4)} ` +
+      `vs baseline ${v.token_odds_time_split.baseline_brier.toFixed(4)}, AUC ${v.token_odds_time_split.auc.toFixed(3)} ` +
+      `(train ${v.token_odds_time_split.train_n}, test ${v.token_odds_time_split.test_n}; label is time-censored)`,
+  );
+  console.log(
+    `calibration (sigma ${v.calibration.sigma_dex} dex, n=${v.calibration.n}): ` +
+      `P25-P75 coverage ${(v.calibration.p25_p75_coverage * 100).toFixed(1)}% (nominal 50%), ` +
+      `P10-P90 coverage ${(v.calibration.p10_p90_coverage * 100).toFixed(1)}% (nominal 80%)`,
+  );
+  console.log(
+    `top 5 by EV: ` +
+      built.rows
+        .slice(0, 5)
+        .map(
+          (r) =>
+            `${r.name} P=${r.p_token.toFixed(3)} EV=$${(r.implied_value_usd / 1e6).toFixed(1)}M`,
+        )
+        .join(" | "),
   );
   console.log(
     `counts: ranked ${built.counts.ranked}, traded ${built.counts.traded}, ` +

@@ -1,4 +1,4 @@
-// Token Radar — the local gate replica, v4.
+// Token Radar — the local gate replica, v6.
 //
 // The seven checks the competition runs on the output directory, re-run
 // here before a submission so a bad bundle never leaves the machine.

@@ -1,4 +1,4 @@
-// Token Radar — the screenshots, v4.
+// Token Radar — the screenshots, v6.
 //
 // Re-takes the dashboard screenshots with headless Chrome: the full
 // board, one protocol's detail panel, the board filtered to the
