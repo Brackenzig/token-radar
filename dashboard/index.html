@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- Token Radar — the dashboard page, v6.
+<!-- Token Radar — the dashboard page, v8.
   ~
   ~ A single page, no framework, no network. It loads ../data.js (the
   ~ board main.ts wrote) and app.js (which renders it). The board tab
@@ -140,14 +140,14 @@
       <p class="note">The expected value is P(token) × the launch value: the
       curve alone says what the token would be worth at this TVL, and the
       token-odds model says how likely the protocol is to launch one. The
-      slice is a tenth of the protocol's expected value, pro-rated to the
-      deposit against its TVL — expected, not promised. Beside it the
-      board shows a second slice, a tenth of the launch value alone,
-      pro-rated the same way: what the slice would be if the token
-      launches. That second slice is the upside, not the expectation —
-      the net, the net per hour and the verdict are all computed from
-      the expected slice only, so showing the upside never moves a FARM
-      count. The net is the expected slice minus fees, gas and the yield
+      slice is a tenth of the launch value alone, pro-rated to the
+      deposit against its TVL — what the slice would be if the token
+      launches, and the slice the net, the net per hour and the verdict
+      are all computed from: you farm the allocation only if the token
+      launches. Beside it the board shows a second slice, a tenth of the
+      expected value, pro-rated the same way: the probability-weighted
+      expectation, shown alongside, never entering the net. The net is
+      the if-launches slice minus fees, gas and the yield
       given up by parking the capital.
       FARM means $5 or more net per hands-on hour, THIN means $0 to $5,
       SKIP means below $0. The capital control re-nets the slice, the net
