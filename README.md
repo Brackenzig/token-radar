@@ -129,15 +129,14 @@ multiple. Time split: the line is fitted on the 34 comparables
 listed before 2024 and tested on the 40 listed since — ×3.16 /
 48% / 80% against ×5.10 / 40% / 75% flat.
 
-**The farm plan.** The slice is a tenth of the protocol's expected
-value, pro-rated to the deposit against its TVL — expected, not
-promised. Beside it the board shows a second slice, a tenth of the
-launch value alone, pro-rated the same way: what the slice would be
-if the token launches. That second slice is the upside, not the
-expectation — the net, the net per hour and the verdict are all
-computed from the expected slice only, so showing the upside never
-moves a FARM count. The plan costs $1 to open the wallet, $2 to deposit, $1
-to claim and the weekly gas — $0.50 a week on Ethereum and Bitcoin,
+**The farm plan.** The slice is a tenth of the protocol's launch
+value alone, pro-rated to the deposit against its TVL — what the
+slice would be if the token launches, and the slice the net, the net
+per hour and the verdict are all computed from: you farm the
+allocation only if the token launches. Beside it the board shows a
+second slice, a tenth of the expected value — P(token) × the launch
+value — pro-rated the same way: the probability-weighted
+expectation, shown alongside, never entering the net. The plan costs $1 to open the wallet, $2 to deposit, $1 to claim and the weekly gas — $0.50 a week on Ethereum and Bitcoin,
 where a transaction is L1 gas, $0.05 a week everywhere else, where
 a swap costs cents. The forgone yield is the T-bill rate, 4% a
 year, pro-rated to the hold. The hold is 45 days for a protocol a
@@ -155,12 +154,13 @@ whether it is new, in more than 40 distinct weekly-action templates.
 **The capital.** The board is priced at $1,000, and the page re-nets
 every plan at $1,000, $2,500, $5,000 or $10,000: the slice and the
 forgone yield scale with the capital, the fees and the hours are
-fixed. At $1,000 the board farms 65 rows, at $2,500 it farms 103,
-at $5,000 124, at $10,000 131 — and 67 rows stay SKIP even at
-$10,000: the biggest protocols, where the expected slice is too
-thin next to the yield given up to hold it. The top of the board by
-expected value is all SKIP at $1,000 — the first FARM row is rank
-19, and none of the top 10 is FARM. Size is not farmability.
+fixed. At $1,000 the board farms 153 rows, at $2,500 it farms 183,
+at $5,000 190, at $10,000 191 — and 7 rows stay SKIP even at
+$10,000: the biggest protocols, where the launch slice is too thin
+next to the yield given up to hold it. The top of the board by
+expected value is almost all SKIP at $1,000 — the first FARM row is
+rank 19, and none of the top 10 is FARM (one is THIN). Size is not
+farmability.
 
 **Eligibility.** A protocol makes the board when it is a pre-token
 protocol in its own right: it records no token, it is not a bridge, a
@@ -244,15 +244,15 @@ second on this snapshot.
 
 ## The numbers
 
-On the sealed snapshot the board holds 198 pre-token protocols: 65
-FARM, 36 THIN, 97 SKIP at $1,000. The largest expected value is Veda
+On the sealed snapshot the board holds 198 pre-token protocols: 153
+FARM, 24 THIN, 21 SKIP at $1,000. The largest expected value is Veda
 at about $40.5M (P 0.646, $62.7M if it launches); the top of the
 board is dominated by Onchain Capital Allocators, Risk Curators and
 CDPs, the categories whose tokens trade at the highest multiples of
 TVL — and by the protocols whose P(token) is high enough to keep
-them there. The highest net per hour at $1,000 is SyncSwap at about
-$33.36 an hour. A FARM plan nets $5 or more per hands-on hour after
-the expected slice, the fees and the forgone T-bill yield are all
+them there. The highest net per hour at $1,000 is Nucleus at about
+$59.05 an hour. A FARM plan nets $5 or more per hands-on hour after
+the if-launches slice, the fees and the forgone T-bill yield are all
 counted.
 
 ## Verification
@@ -265,7 +265,7 @@ numbers (×3.16 / 48% / 80% against ×5.10 / 40% / 75% flat), the
 token-odds cross-validation (Brier 0.1958 vs 0.2473, AUC 0.766,
 log-loss 0.578, n = 442), the calibration coverage (P25–P75 50.5%,
 P10–P90 82.2%), the top-5 expected values, and the FARM counts at
-each capital (65 / 103 / 124 / 131) all match. The build is
+each capital (153 / 183 / 190 / 191) all match. The build is
 deterministic: two runs write byte-identical output. The seven gates
 pass locally.
 
