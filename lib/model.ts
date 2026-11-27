@@ -1,4 +1,4 @@
-// Token Radar — the valuation, the farm plan and the board, v6.
+// Token Radar — the valuation, the farm plan and the board, v8.
 //
 // A radar for token launches. It reads a sealed snapshot of every
 // protocol (DefiLlama, frozen on a date), fits a comparables curve to
@@ -7,10 +7,13 @@
 // and ranks the protocols with no token yet by their EXPECTED VALUE:
 // the value their launch would carry, times the probability they
 // launch at all. Each one gets a farm plan for a fixed $1,000 of
-// capital: the expected slice of the launch value the plan would
-// earn, minus the gas and fees, minus the yield given up by parking
-// the money, per plan and per hands-on hour, with a FARM / THIN /
-// SKIP verdict.
+// capital: the slice of the launch value the plan would earn IF the
+// token launches, minus the gas and fees, minus the yield given up
+// by parking the money, per plan and per hands-on hour, with a FARM
+// / THIN / SKIP verdict. The expected value stays on the board as
+// the ranking and as a second, expected slice beside it — but the
+// plan is netted on the launch slice, because you farm the
+// allocation only if the token launches.
 //
 // Nothing here touches the network. The snapshot is the only input,
 // and the same bytes always give the same board. Every number the
@@ -143,13 +146,19 @@ export interface BoardRow {
   rank_hi: number;
   /** The valuation broken down. */
   model: ModelDetail;
-  /** The expected slice of the launch value a $1,000 plan would earn. */
+  /** The expected slice of the launch value a $1,000 plan would earn:
+   * a tenth of the expected value, pro-rated the same way. It is a
+   * display number: the plan's money is netted on the if-launches
+   * slice below, and this one shows the probability-weighted
+   * expectation beside it. */
   slice_1k_usd: number;
   /** The slice if the token launches: a tenth of the curve value
    * alone, pro-rated the same way, at the same $1,000 plan — the
-   * upside v4 showed, next to the expected slice above. It is a
-   * display number only: the net, the net per hour and the verdict
-   * are all computed from the expected slice, never from this one. */
+   * upside v4 showed, next to the expected slice above. This is the
+   * slice the net, the net per hour and the verdict are computed
+   * from: you farm the allocation only if the token launches, so
+   * the plan is netted on what it earns when it launches, not on
+   * the probability-weighted expectation. */
   slice_if_launches_1k_usd: number;
   /** The gas and fees the plan costs. */
   fees_usd: number;
@@ -1550,9 +1559,11 @@ export function verdictFor(netPerHour: number): "FARM" | "THIN" | "SKIP" {
 }
 
 /** The slice a plan would earn at a given capital: a tenth of the
-// expected value, pro-rated to the deposit against the protocol's TVL,
-// rounded to cents. The slice is expected, not promised: it is the
-// launch value times the probability of a launch. */
+// given value, pro-rated to the deposit against the protocol's TVL,
+// rounded to cents. Called twice per row — once on the expected
+// value, for the display slice, and once on the curve value alone,
+// for the if-launches slice the plan is netted on. A slice is not
+// promised: the launch value is earned only if the token launches. */
 export function sliceUsd(evUsd: number, tvlUsd: number, capital: number): number {
   return round2((SLICE_SHARE * evUsd * capital) / tvlUsd);
 }
@@ -1570,21 +1581,20 @@ export function netPerHourUsd(net: number, hold: number): number {
   return round2(net / hoursFor(hold));
 }
 
-/** Re-net one row's plan at another capital: the slice and the forgone
-// yield scale with the capital, the fees and the hours do not. The
-// page uses this for the capital selector, and the board build uses it
+/** Re-net one row's plan at another capital: the slices and the
+// forgone yield scale with the capital, the fees and the hours do not.
+// The page uses this for the capital selector, and the board build uses it
 // for the FARM counts at each capital — one formula, both places, so
-// the page can never disagree with the board. The if-launches slice
-// re-nets the same way, from the curve value alone; the verdict is
-// still the expected slice's verdict, so showing the upside never
-// moves a FARM count. */
+// the page can never disagree with the board. The net and the verdict
+// come from the if-launches slice, at every capital: the expected
+// slice is shown beside it, but it never enters the net. */
 export function renetAtCapital(
   row: Pick<BoardRow, "implied_value_usd" | "curve_value_usd" | "tvl_usd" | "fees_usd" | "hold_days">,
   capital: number,
 ): { slice_usd: number; slice_if_launches_usd: number; net_usd: number; net_per_hour_usd: number; verdict: "FARM" | "THIN" | "SKIP" } {
   const slice = sliceUsd(row.implied_value_usd, row.tvl_usd, capital);
   const sliceIfLaunches = sliceUsd(row.curve_value_usd, row.tvl_usd, capital);
-  const net = netUsd(slice, row.fees_usd, row.hold_days, capital);
+  const net = netUsd(sliceIfLaunches, row.fees_usd, row.hold_days, capital);
   const perHour = netPerHourUsd(net, row.hold_days);
   return { slice_usd: slice, slice_if_launches_usd: sliceIfLaunches, net_usd: net, net_per_hour_usd: perHour, verdict: verdictFor(perHour) };
 }
@@ -1972,7 +1982,10 @@ export function buildBoard(snapshot: Snapshot): BuiltBoard {
     const slice = sliceUsd(ev, p.tvl_usd, PLAN_CAPITAL_USD);
     const sliceIfLaunches = sliceUsd(curve_value, p.tvl_usd, PLAN_CAPITAL_USD);
     const fees = feesUsd(hold, chain);
-    const net = netUsd(slice, fees, hold, PLAN_CAPITAL_USD);
+    // The plan is netted on the if-launches slice: you farm the
+    // allocation only if the token launches. The expected slice stays
+    // on the row as the display number beside it.
+    const net = netUsd(sliceIfLaunches, fees, hold, PLAN_CAPITAL_USD);
     const netPerHour = netPerHourUsd(net, hold);
     const category = p.category ?? "";
     const list = byCategory.get(category) ?? [];
@@ -2117,7 +2130,7 @@ export function buildBoard(snapshot: Snapshot): BuiltBoard {
 // the category factor hurts leave-one-out and ties the time split,
 // growth and breadth are worse on both, maturity ties one and is
 // worse on the other, and the full formula is worse on leave-one-out.
-// The table is in the method proof (HELDOUT_TABLE). So v6 prices a
+// The table is in the method proof (HELDOUT_TABLE). So v8 prices a
 // launch off the curve alone, and says so: the value model is at the
 // data's limit, and dressing it up would be pretending otherwise.
 //
@@ -2146,9 +2159,21 @@ export function buildBoard(snapshot: Snapshot): BuiltBoard {
 // EV top 5 brings in two high-P protocols the curve alone ranks
 // lower (Defi Saver at P = 0.94, Lightning at P = 0.90), and the
 // re-ranking is substantial (Spearman 0.74 between the curve rank and
-// the EV rank). The farm plan nets the expected slice, not the launch
-// slice: a plan earns the launch value only if the token launches, so
-// the slice, the net and the verdict are all expected values.
+// the EV rank). The farm plan nets the if-launches slice, not the
+// expected slice: a plan earns the launch value only if the token
+// launches, so the slice, the net and the verdict are all computed
+// from the launch value, and the expected value is shown beside them
+// as the probability-weighted expectation. That is the v8 change:
+// v6/v7 netted on the expected slice, which shrank the median slice
+// to ~40% of the curve slice and collapsed FARM at $1,000 from 133
+// to 65. v8 nets on the launch value again, v4's approach — but on
+// the curve alone, the v5-proven value, not on v4's multiplier
+// formula: v4 multiplied the curve by category, growth, momentum,
+// maturity and breadth, and the product ran at a median of 0.75x the
+// curve, so v8's FARM count lands at 153, above v4's 133, instead
+// of reproducing it. The multipliers stay dropped — the ablation
+// proved them dead weight — so the overshoot is the honest price of
+// the proven value, not a tuning choice.
 //
 // THE VALIDATION. Two out-of-sample tests of the curve, both computed
 // here. The leave-one-out test holds each comparable out in turn,
