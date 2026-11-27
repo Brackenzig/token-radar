@@ -1,4 +1,4 @@
-// Token Radar — the program, v6.
+// Token Radar — the program, v8.
 //
 // Reads a sealed DefiLlama snapshot of every protocol and writes a web
 // dashboard that ranks the protocols with no token yet by their
