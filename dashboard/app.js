@@ -1,4 +1,4 @@
-// Token Radar — the dashboard script, v6.
+// Token Radar — the dashboard script, v8.
 //
 // Renders the board from window.TOKEN_RADAR_DATA, the object main.ts
 // wrote into ../data.js. No fetch, no network, no framework: the
@@ -95,23 +95,23 @@
   }
 
   // -- Re-netting: the same arithmetic as model.ts ---------------------------
-  // The slice is a tenth of the launch value, pro-rated to the deposit
-  // against the protocol's TVL; the fees are fixed; the forgone yield
-  // is the T-bill rate pro-rated to the hold and to the capital. The
-  // net is the rounded slice minus the rounded fees minus the forgone
-  // yield, rounded to cents once; the net per hour divides by the
-  // hands-on hours. A plan that nets $5 an hour or more is FARM.
-  // The second slice is the same tenth, from the curve value alone —
-  // what the slice would be if the token launches. It is shown next
-  // to the expected slice so the reader sees both the honest
-  // expectation and the upside; it never enters the net or the
-  // verdict, which stay expected-value.
+  // The if-launches slice is a tenth of the launch value, pro-rated to
+  // the deposit against the protocol's TVL; the fees are fixed; the
+  // forgone yield is the T-bill rate pro-rated to the hold and to the
+  // capital. The net is the rounded if-launches slice minus the rounded
+  // fees minus the forgone yield, rounded to cents once; the net per
+  // hour divides by the hands-on hours. A plan that nets $5 an hour or
+  // more is FARM. The expected slice is the same tenth, from the
+  // expected value — the probability-weighted expectation, shown next
+  // to the if-launches slice so the reader sees both; it never enters
+  // the net or the verdict, which are netted on the launch slice
+  // because you farm the allocation only if the token launches.
   function renet(row, capital) {
     var slice = round2((row.slice_1k_usd * capital) / 1000);
     var sliceIfLaunches = round2((row.slice_if_launches_1k_usd * capital) / 1000);
     var fees = round2(row.fees_usd);
     var forgone = (capital * TBILL_RATE * row.hold_days) / 365;
-    var net = round2(slice - fees - forgone);
+    var net = round2(sliceIfLaunches - fees - forgone);
     var hours = (40 + (5 * row.hold_days) / 7) / 60;
     var perHour = round2(net / hours);
     var verdict = perHour >= FARM_MIN_NET_PER_HOUR ? "FARM"
@@ -389,17 +389,17 @@
       "A plan costs $1 to open the wallet, $2 to deposit, $1 to claim and the weekly " +
       "gas — $0.50 a week on Ethereum and Bitcoin, $0.05 elsewhere — for a hold of 45, " +
       "60 or 90 days by age. The hands-on time is 40 minutes plus 5 a week. FARM means " +
-      "$5 or more net per hands-on hour. The slice is a tenth of the expected value, " +
-      "pro-rated to the deposit against the protocol's TVL — expected, not promised. " +
-      "Beside it the board shows a second slice, a tenth of the launch value alone, " +
-      "pro-rated the same way: what the slice would be if the token launches. The " +
-      "second slice is the upside, not the expectation — the net, the net per hour " +
-      "and the verdict are all computed from the expected slice only, so showing " +
-      "the upside never moves a FARM count. " +
+      "$5 or more net per hands-on hour. The slice is a tenth of the launch value " +
+      "alone, pro-rated to the deposit against the protocol's TVL — what the slice " +
+      "would be if the token launches, which is the slice the net, the net per hour " +
+      "and the verdict are all computed from: you farm the allocation only if the " +
+      "token launches. Beside it the board shows a second slice, a tenth of the " +
+      "expected value — P(token) × the launch value — pro-rated the same way: the " +
+      "probability-weighted expectation, shown alongside, never entering the net. " +
       "At $1,000 the board farms " + farmAt[1000] +
       " rows, at $2,500 it farms " + farmAt[2500] + ", at $5,000 " + farmAt[5000] +
       ", at $10,000 " + farmAt[10000] + " — and " + skipAt10k +
-      " rows stay SKIP even at $10,000: the biggest protocols, where the expected slice " +
+      " rows stay SKIP even at $10,000: the biggest protocols, where the launch slice " +
       "is too thin next to the yield given up to hold it.";
   }
 
@@ -466,7 +466,7 @@
       "<dt>Category</dt><dd>" + esc(row.category) + "</dd>" +
       "<dt>Hold</dt><dd>" + row.hold_days + " days</dd>" +
       "<dt>Slice at $" + state.capital.toLocaleString("en-US") + "</dt><dd>" + fmtMoney(n.slice) + " (expected)</dd>" +
-      "<dt>Slice if it launches at $" + state.capital.toLocaleString("en-US") + "</dt><dd>" + fmtMoney(n.sliceIfLaunches) + " (a tenth of the launch value alone, pro-rated the same way — the upside, not the expectation; the net and verdict above still use the expected slice)</dd>" +
+      "<dt>Slice if it launches at $" + state.capital.toLocaleString("en-US") + "</dt><dd>" + fmtMoney(n.sliceIfLaunches) + " (a tenth of the launch value alone, pro-rated the same way — the slice the net and verdict above are computed from, because you farm the allocation only if the token launches)</dd>" +
       "<dt>Fees</dt><dd>" + fmtSigned(-n.fees) + "</dd>" +
       "<dt>Net</dt><dd>" + fmtSigned(n.net) + " (" + fmtSigned(n.perHour) + "/hr over " + hoursFor(row).toFixed(1) + " hands-on hours) — " + n.verdict + "</dd>";
     $("detail-capital-note").textContent =
